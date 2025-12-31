@@ -5,6 +5,12 @@ build-web:
 build-with-web: build-web
 	go build -o bin/web ./cmd/web
 
+build-server-headless:
+	go build -o bin/web ./cmd/web
+
+run: build-server-headless
+	./bin/web
+
 dev-web:
 	cd web && npm run dev
 

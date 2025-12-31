@@ -19,22 +19,40 @@ function handleSend(text: string) {
 </script>
 
 <template>
-  <div class="p-6 space-y-4">
-    <div class="flex items-center gap-3">
-      <span class="badge"
-        :class="status === 'open' ? 'badge-success' : status === 'connecting' ? 'badge-warning' : 'badge-ghost'">
-        {{ status }}
-      </span>
-      <span v-if="error" class="text-error text-sm">{{ error }}</span>
+  <div class="drawer">
+    <input id="drawer-sidebar" type="checkbox" class="drawer-toggle">
+    <div class="drawer-content">
+      <label for="drawer-sidebar" class="btn drawer-button">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"
+          stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+        </svg>
+      </label>
+      <div class="p-6 space-y-4">
+        <div class="flex items-center gap-3">
+          <span class="badge"
+            :class="status === 'open' ? 'badge-success' : status === 'connecting' ? 'badge-warning' : 'badge-ghost'">
+            {{ status }}
+          </span>
+          <span v-if="error" class="text-error text-sm">{{ error }}</span>
 
-      <div class="ml-auto flex gap-2">
-        <button class="btn btn-sm" @click="connect">Connect</button>
-        <button class="btn btn-sm btn-outline" @click="close">Close</button>
+          <div class="ml-auto flex gap-2">
+            <button class="btn btn-sm" @click="connect">Connect</button>
+            <button class="btn btn-sm btn-outline" @click="close">Close</button>
+          </div>
+        </div>
+
+        <WsLog :lines="lines" />
+
+        <WsSendInput :disabled="!canSend" @send="handleSend" />
       </div>
     </div>
-
-    <WsLog :lines="lines" />
-
-    <WsSendInput :disabled="!canSend" @send="handleSend" />
+    <div class="drawer-side">
+      <label for="drawer-sidebar" class="drawer-overlay"></label>
+      <ul class="menu bg-base-200 min-h-full w-80 p-4">
+        <li><a href="#">Server</a></li>
+        <li><a href="#">Clients</a></li>
+      </ul>
+    </div>
   </div>
 </template>
