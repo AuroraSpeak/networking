@@ -1,13 +1,21 @@
-package logger
+package web
 
 import (
-	"github.com/aura-speak/networking/internal/web"
+	"fmt"
+
 	"github.com/sirupsen/logrus"
 )
 
 type WebSocketHook struct {
-	hub       *web.WebSocketHub
+	hub       *WebSocketHub
 	formatter logrus.Formatter
+}
+
+func NewWebSocketHook(hub *WebSocketHub) *WebSocketHook {
+	return &WebSocketHook{
+		hub:       hub,
+		formatter: &logrus.JSONFormatter{},
+	}
 }
 
 func (wh *WebSocketHook) Levels() []logrus.Level {
@@ -15,12 +23,14 @@ func (wh *WebSocketHook) Levels() []logrus.Level {
 }
 
 func (wh *WebSocketHook) Fire(entry *logrus.Entry) error {
-	e := entry.Dup()
 	if wh.hub == nil {
 		return nil
 	}
-	b, err := wh.formatter.Format(e)
+	a, err := entry.String()
+	fmt.Println("[ENTRY]:" + a)
+	b, err := wh.formatter.Format(entry)
 	if err != nil {
+		fmt.Println(err)
 		return err
 	}
 	wh.hub.Broadcast([]byte(b))

@@ -34,12 +34,14 @@ type WebSocketHub struct {
 
 func NewWebSocketHub(ctx context.Context) *WebSocketHub {
 	hubCtx, cancel := context.WithCancel(ctx)
-	return &WebSocketHub{
+	wsHub := &WebSocketHub{
 		conns:  make(map[*websocket.Conn]bool),
 		mu:     sync.Mutex{},
 		ctx:    hubCtx,
 		cancel: cancel,
 	}
+	log.AddHook(NewWebSocketHook(wsHub))
+	return wsHub
 }
 
 func (wh *WebSocketHub) HandleWS(ws *websocket.Conn) {
@@ -63,7 +65,10 @@ func (wh *WebSocketHub) readLoop(ws *websocket.Conn) {
 		default:
 		}
 		// Set the ReadDeadline, so we can peridoicly test the context
-		ws.SetReadDeadline(time.Now().Add(100 * time.Millisecond))
+		err := ws.SetReadDeadline(time.Now().Add(100 * time.Millisecond))
+		if err != nil {
+			fmt.Println(err)
+		}
 		n, err := ws.Read(buf)
 		if err != nil {
 			// Client has Closed the connection

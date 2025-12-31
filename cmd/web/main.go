@@ -6,10 +6,12 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/aura-speak/networking/internal/logger"
 	"github.com/aura-speak/networking/internal/web"
 )
 
 func main() {
+	logger.Setup()
 	server := web.NewServer(8080)
 
 	// Starte Server in Goroutine

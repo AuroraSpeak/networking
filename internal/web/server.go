@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/aura-speak/networking/pkg/server"
+	log "github.com/sirupsen/logrus"
 	"golang.org/x/net/websocket"
 )
 
@@ -42,7 +43,6 @@ func (s *Server) Run() error {
 	mux := http.NewServeMux()
 	mux.Handle("/ws", websocket.Handler(s.handleWS))
 	mux.Handle("/", http.FileServer(http.Dir("./bin")))
-
 	s.httpServer = &http.Server{
 		Addr:    fmt.Sprintf(":%d", s.Port),
 		Handler: mux,
