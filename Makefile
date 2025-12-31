@@ -10,3 +10,8 @@ dev-web:
 
 run-with-web: build-with-web
 	./bin/web
+
+clean:
+	rm -rf ./bin
+
+.PHONY: build-web build-with-web dev-web run-with-web clean

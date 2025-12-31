@@ -45,6 +45,7 @@ func (s *Server) Run() error {
 		go func() {
 			s.remoteConns.Range(func(key, value any) bool {
 				if _, err := conn.WriteTo(buf, *value.(*net.Addr)); err != nil {
+					// Remove client if needed
 					s.remoteConns.Delete(key)
 					return true
 				}
