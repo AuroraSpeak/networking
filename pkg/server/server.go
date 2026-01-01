@@ -6,18 +6,34 @@ import (
 	"sync"
 )
 
+// NOTE: Structs
+
 type Server struct {
 	conn        *net.UDPConn
 	Port        int
 	remoteConns *sync.Map
 	ctx         context.Context
 
+	// ServerState: tells the state of the networking parts of the server
+	ServerState
+
 	// stopping sign for the Run loop
 	shouldStop bool
+
+	IsAlive bool
 
 	// incoming message channel
 	IncomingCh chan []byte
 }
+
+type ServerState struct {
+	// updated says if the server Stated updated
+	updated    bool
+	ShouldStop bool
+	IsAlive    bool
+}
+
+// NOTE: Server functions
 
 func NewServer(port int, ctx context.Context) *Server {
 	return &Server{
@@ -38,6 +54,8 @@ func (s *Server) Run() error {
 		return err
 	}
 	defer s.conn.Close()
+	s.IsAlive = true
+	s.ServerState.IsAlive = true
 
 	// Infinite loop that listens for incoming UDP packets
 	for !s.shouldStop {
@@ -69,6 +87,8 @@ func (s *Server) Run() error {
 			})
 		}()
 	}
+	s.IsAlive = false
+	s.ServerState.IsAlive = false
 	return nil
 }
 
@@ -84,22 +104,27 @@ func (s *Server) Broadcast(message []byte) {
 }
 
 func (s *Server) Stop() {
-	s.shouldStop = true
-	
+	s.setShouldStop()
+
 	// Send stop message to all connected clients
 	if s.conn != nil {
 		s.remoteConns.Range(func(key, value any) bool {
 			s.conn.WriteTo([]byte("STOP"), *value.(*net.Addr))
 			return true
 		})
-		
+
 		// Close the UDP connection to interrupt ReadFrom
 		s.conn.Close()
 	}
-	
+
 	// Clear all remote connections
 	s.remoteConns.Range(func(key, value any) bool {
 		s.remoteConns.Delete(key)
 		return true
 	})
+}
+
+func (s *Server) setShouldStop() {
+	s.updated = true
+	s.shouldStop = true
 }
