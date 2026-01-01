@@ -34,5 +34,4 @@ func (s *Server) stopUDPServer(w http.ResponseWriter, r *http.Request) {
 	s.udpServer.Stop()
 	log.Info("UDP server stopped")
 	w.WriteHeader(http.StatusOK)
-	w.Write([]byte("UDP server stopped"))
 }
