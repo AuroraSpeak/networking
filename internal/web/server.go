@@ -7,15 +7,19 @@ import (
 	"sync"
 	"time"
 
+	"github.com/aura-speak/networking/pkg/client"
 	"github.com/aura-speak/networking/pkg/server"
-	log "github.com/sirupsen/logrus"
 	"golang.org/x/net/websocket"
 )
 
-type Server struct {
-	Port int
-	mu   sync.Mutex
+type Config struct {
+	UDPPort int
+}
 
+type Server struct {
+	Port       int
+	mu         sync.Mutex
+	config     Config
 	httpServer *http.Server
 	ctx        context.Context
 	cancel     context.CancelFunc
@@ -25,17 +29,21 @@ type Server struct {
 	wsHub *WebSocketHub
 
 	// UDP Parts
-	udpServer *server.Server
+	udpServer  *server.Server
+	udpClients map[*client.Client]bool
+	// Communicate from UDP Server and Clients to WebSocket Hub
+	messageCh chan []InternalMessage
 }
 
 func NewServer(port int) *Server {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &Server{
-		Port:   port,
-		mu:     sync.Mutex{},
-		ctx:    ctx,
-		cancel: cancel,
-		wsHub:  NewWebSocketHub(ctx),
+		Port:       port,
+		mu:         sync.Mutex{},
+		ctx:        ctx,
+		cancel:     cancel,
+		wsHub:      NewWebSocketHub(ctx),
+		udpClients: map[*client.Client]bool{},
 	}
 }
 
@@ -43,6 +51,11 @@ func (s *Server) Run() error {
 	mux := http.NewServeMux()
 	mux.Handle("/ws", websocket.Handler(s.handleWS))
 	mux.Handle("/", http.FileServer(http.Dir("./bin")))
+
+	// UDP Server handlers
+	mux.HandleFunc("/server-start", s.startUDPServer)
+	mux.HandleFunc("/server-stop", s.stopUDPServer)
+
 	s.httpServer = &http.Server{
 		Addr:    fmt.Sprintf(":%d", s.Port),
 		Handler: mux,
