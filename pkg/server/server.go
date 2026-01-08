@@ -1,3 +1,10 @@
+// Package Server contains the core networking for the Server
+// It is responsible for listening for incoming packets
+// The implementation is based on the UDP protocol
+// It Handles Server States, Starts and Runs the Server
+// Add callbacks to the Server to handle incoming packets
+// It may contains some default callbacks required for handling the server state
+
 package server
 
 import (
@@ -6,31 +13,56 @@ import (
 	"fmt"
 	"net"
 	"sync"
+	"sync/atomic"
+
+	"github.com/aura-speak/networking/pkg/router"
+	log "github.com/sirupsen/logrus"
 )
 
 // NOTE: Structs
 
+// Server is the main struct for the UDP Server
+// It contains the connection to the UDP Server
+// The Port of the Server
+// The remote connections to the Server
+// The context of the Server
+// The ServerState
+// The stopping sign for the Run loop
+// The isAlive sign for the Server
+// The shouldStop sign for the Server
+// The incoming message channel
+// The wg for the Server
+// The out command channel
+// The packet router for the Server
 type Server struct {
-	conn        *net.UDPConn
+	// Networking stuff
 	Port        int
+	conn        *net.UDPConn
 	remoteConns *sync.Map
-	ctx         context.Context
+
+	ctx context.Context
 
 	// ServerState: tells the state of the networking parts of the server
 	ServerState
 
 	// stopping sign for the Run loop
-	shouldStop bool
-
-	IsAlive bool
+	IsAlive    int32
+	shouldStop int32
 
 	// incoming message channel
 	IncomingCh chan []byte
+	wg         sync.WaitGroup
 
 	// send command internal channel
 	OutCommandCh chan InternalCommand
+
+	packetRouter *router.PacketRouter
 }
 
+// ServerState is the struct for the server state
+// It contains the updated sign for the server state
+// The shouldStop sign for the server
+// The isAlive sign for the server
 type ServerState struct {
 	// updated says if the server Stated updated
 	updated    bool `json:"-"`
@@ -40,18 +72,33 @@ type ServerState struct {
 
 // NOTE: Server functions
 
+// NewServer creates a new UDP Server it takes the port of the Server and the context of the Server
 func NewServer(port int, ctx context.Context) *Server {
 	return &Server{
 		Port:         port,
 		remoteConns:  new(sync.Map),
-		IncomingCh:   make(chan []byte),
-		OutCommandCh: make(chan InternalCommand),
+		IncomingCh:   make(chan []byte, 10),
+		OutCommandCh: make(chan InternalCommand, 10),
 		ctx:          ctx,
+		packetRouter: router.NewPacketRouter(),
 	}
 }
 
+// OnPacket registers a new PacketHandler for a specific packet type
+//
+// Example:
+//
+//	server.OnPacket("text", func(packet []byte) error {
+//		fmt.Println("Received text packet:", string(packet))
+//		return nil
+//	})
+func (s *Server) OnPacket(packetType string, handler router.PacketHandler) {
+	s.packetRouter.OnPacket(packetType, handler)
+}
+
+// Run starts the Server and listens for incoming packets
 func (s *Server) Run() error {
-	if s.IsAlive {
+	if atomic.LoadInt32(&s.IsAlive) == 1 {
 		return errors.New("server is already running")
 	}
 	addr := net.UDPAddr{
@@ -65,14 +112,24 @@ func (s *Server) Run() error {
 	}
 	defer s.conn.Close()
 	s.setIsAlive(true)
+	log.Infof("Server started on port %d", s.Port)
 
 	// Infinite loop that listens for incoming UDP packets
-	for !s.shouldStop {
-
-		// ! TMP: Change this Later
+	for {
+		select {
+		case <-s.ctx.Done():
+			return nil
+		case <-s.OutCommandCh:
+		default:
+		}
+		shouldStop := atomic.LoadInt32(&s.shouldStop) == 1
+		if shouldStop {
+			break
+		}
+		// TODO: Change this Later
 		// Buffer to hold incoming data
 		buf := make([]byte, 1024)
-		_, remoteAddr, err := s.conn.ReadFrom(buf)
+		n, remoteAddr, err := s.conn.ReadFromUDP(buf)
 		if err != nil {
 			continue
 		}
@@ -80,21 +137,18 @@ func (s *Server) Run() error {
 		// Check if it is a new remote address
 		// If so, store it in the map
 		if _, ok := s.remoteConns.Load(remoteAddr.String()); !ok {
-			s.remoteConns.Store(remoteAddr.String(), &remoteAddr)
+			s.remoteConns.Store(remoteAddr.String(), remoteAddr)
 		}
-		s.IncomingCh <- buf
+		select {
+		case s.IncomingCh <- buf[:n]:
+		case <-s.ctx.Done():
+			return nil
+		}
 
-		// Broadcast the received packet to all connected clients
-		go func() {
-			s.remoteConns.Range(func(key, value any) bool {
-				if _, err := s.conn.WriteTo(buf, *value.(*net.Addr)); err != nil {
-					// Remove client if needed
-					s.remoteConns.Delete(key)
-					return true
-				}
-				return true
-			})
-		}()
+		if err := s.packetRouter.HandlePacket("", buf[:n]); err != nil {
+			log.WithError(err).Error("Error handling packet")
+			continue
+		}
 	}
 	fmt.Println("Server Stopped")
 	s.setIsAlive(false)
@@ -102,23 +156,26 @@ func (s *Server) Run() error {
 }
 
 func (s *Server) Broadcast(message []byte) {
-	s.remoteConns.Range(func(key, value any) bool {
-		if _, err := s.conn.WriteTo(message, *value.(*net.Addr)); err != nil {
-			// Remove client if needed
-			s.remoteConns.Delete(key)
+	s.wg.Go(func() {
+		s.remoteConns.Range(func(key, value any) bool {
+			if _, err := s.conn.WriteToUDP(message, value.(*net.UDPAddr)); err != nil {
+				// Remove client if needed
+				s.remoteConns.Delete(key)
+				return true
+			}
 			return true
-		}
-		return true
+		})
 	})
 }
 
+// Stop stops the Server and closes all connections
 func (s *Server) Stop() {
 	s.setShouldStop()
 
 	// Send stop message to all connected clients
 	if s.conn != nil {
 		s.remoteConns.Range(func(key, value any) bool {
-			s.conn.WriteTo([]byte("STOP"), *value.(*net.Addr))
+			s.conn.WriteToUDP([]byte("STOP"), value.(*net.UDPAddr))
 			return true
 		})
 
@@ -133,15 +190,32 @@ func (s *Server) Stop() {
 	})
 }
 
+// setShouldStop sets the shouldStop sign for the Server
 func (s *Server) setShouldStop() {
-	s.OutCommandCh <- CmdUpdateServerState
+	atomic.StoreInt32(&s.shouldStop, 1)
+	select {
+	case <-s.ctx.Done():
+		return
+	case s.OutCommandCh <- CmdUpdateServerState:
+	default:
+	}
 	s.updated = true
-	s.shouldStop = true
+	s.ShouldStop = true
 }
 
+// setIsAlive sets the isAlive sign for the Server
 func (s *Server) setIsAlive(val bool) {
-	s.OutCommandCh <- CmdUpdateServerState
+	var v int32
+	if val {
+		v = 1
+	}
+	atomic.StoreInt32(&s.IsAlive, v)
+	select {
+	case <-s.ctx.Done():
+		return
+	case s.OutCommandCh <- CmdUpdateServerState:
+	default:
+	}
 	s.updated = true
-	s.IsAlive = val
 	s.ServerState.IsAlive = val
 }
