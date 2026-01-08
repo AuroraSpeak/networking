@@ -43,9 +43,8 @@ type Client struct {
 
 	conn *net.UDPConn
 
-	ctx    context.Context
-	cancel context.CancelFunc
-	wg     sync.WaitGroup
+	ctx context.Context
+	wg  sync.WaitGroup
 
 	// Communication Channels
 	// Client -> Server
@@ -55,8 +54,6 @@ type Client struct {
 	// Sends errors from go Routines to main routine
 	errCh chan error
 
-	// Callback Support
-	mu           sync.RWMutex
 	packetRouter *router.PacketRouter
 
 	running bool
@@ -64,7 +61,7 @@ type Client struct {
 
 // NewClient creates a new UDP Client it takes the Host, Port and timeout of the Client
 func NewClient(Host string, Port int, timeout time.Duration) *Client {
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	ctx := context.Background()
 	c := &Client{
 		Host:         Host,
 		Port:         Port,
@@ -72,7 +69,6 @@ func NewClient(Host string, Port int, timeout time.Duration) *Client {
 		recvCh:       make(chan []byte),
 		errCh:        make(chan error),
 		ctx:          ctx,
-		cancel:       cancel,
 		packetRouter: router.NewPacketRouter(),
 	}
 	return c
@@ -87,9 +83,7 @@ func NewClient(Host string, Port int, timeout time.Duration) *Client {
 //		return nil
 //	})
 func (c *Client) OnPacket(packetType string, handler router.PacketHandler) {
-	c.mu.Lock()
 	c.packetRouter.OnPacket("", handler)
-	c.mu.Unlock()
 }
 
 // Run starts the Client and connects to the Server
@@ -168,18 +162,16 @@ func (c *Client) recvLoop() {
 		}
 		// TODO: same here change later when we exacly know the max msg length of a packet in the Protocol
 		dst := make([]byte, n)
+		copy(dst, buffer[:n])
 		if string(dst) == "STOP" {
 			c.ctx.Done()
 			log.Info("Received STOP message from server")
 			return
 		}
 
-		copy(dst, buffer[:n])
-		c.mu.RLock()
 		if err := c.packetRouter.HandlePacket("", dst); err != nil {
 			log.WithError(err).Error("Error handling packet")
 			continue
 		}
-		c.mu.RUnlock()
 	}
 }

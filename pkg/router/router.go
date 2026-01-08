@@ -6,7 +6,10 @@
 // It may contains some default callbacks required for handling the router state
 package router
 
-import "errors"
+import (
+	"errors"
+	"sync"
+)
 
 // PacketHandler is the function type for the PacketHandler
 // It takes a packet and returns an error
@@ -15,13 +18,13 @@ type PacketHandler func(msg []byte) error
 // PacketRouter is the main struct for the PacketRouter
 // It contains the handlers for the PacketRouter
 type PacketRouter struct {
-	handlers map[string]PacketHandler
+	handlers sync.Map
 }
 
 // NewPacketRouter creates a new PacketRouter
 func NewPacketRouter() *PacketRouter {
 	return &PacketRouter{
-		handlers: make(map[string]PacketHandler),
+		handlers: sync.Map{},
 	}
 }
 
@@ -34,7 +37,7 @@ func NewPacketRouter() *PacketRouter {
 //		return nil
 //	})
 func (r *PacketRouter) OnPacket(packetType string, handler PacketHandler) {
-	r.handlers[packetType] = handler
+	r.handlers.Store(packetType, handler)
 }
 
 // HandlePacket routes a packet to the appropriate handler
@@ -53,9 +56,10 @@ func (r *PacketRouter) OnPacket(packetType string, handler PacketHandler) {
 //		fmt.Println("Error routing packet:", err)
 //	}
 func (r *PacketRouter) HandlePacket(packetType string, packet []byte) error {
-	handler, ok := r.handlers[packetType]
+	value, ok := r.handlers.Load(packetType)
 	if !ok {
 		return errors.New("no handler found for packet type")
 	}
+	handler := value.(PacketHandler)
 	return handler(packet)
 }
