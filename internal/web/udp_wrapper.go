@@ -1,6 +1,7 @@
 package web
 
 import (
+	"encoding/json"
 	"net/http"
 
 	"github.com/aura-speak/networking/pkg/server"
@@ -10,11 +11,14 @@ import (
 
 // StartUDPServer starts a UDP server in its own goroutine that listens for incoming messages
 func (s *Server) startUDPServer(w http.ResponseWriter, r *http.Request) {
+	s.mu.Lock()
 	s.udpServer = server.NewServer(s.config.UDPPort, s.ctx)
+	udpServer := s.udpServer
+	s.mu.Unlock()
+
 	var err error
 	s.shutdownWg.Go(func() {
-		defer s.shutdownWg.Done()
-		if err = s.udpServer.Run(); err != nil {
+		if err = udpServer.Run(); err != nil {
 			log.WithError(err).Error("error starting udp server")
 		}
 	})
@@ -25,13 +29,37 @@ func (s *Server) startUDPServer(w http.ResponseWriter, r *http.Request) {
 
 // StopUDPServer stops the running UDP server
 func (s *Server) stopUDPServer(w http.ResponseWriter, r *http.Request) {
-	if s.udpServer == nil {
+	s.mu.Lock()
+	udpServer := s.udpServer
+	s.mu.Unlock()
+
+	if udpServer == nil {
 		log.Warn("UDP server is not running")
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 
-	s.udpServer.Stop()
+	udpServer.Stop()
 	log.Info("UDP server stopped")
 	w.WriteHeader(http.StatusOK)
+}
+
+func (s *Server) getUDPServerState(w http.ResponseWriter, r *http.Request) {
+	s.mu.Lock()
+	udpServer := s.udpServer
+	s.mu.Unlock()
+
+	if udpServer == nil {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"shouldStop":false,"isAlive":false}`))
+		return
+	}
+	b, err := json.Marshal(udpServer.ServerState)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		log.WithError(err).Error("Can't marshal UDP Server State to json")
+		return
+	}
+	w.WriteHeader(http.StatusOK)
+	w.Write(b)
 }
