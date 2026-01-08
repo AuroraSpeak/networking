@@ -3,6 +3,24 @@ import { computed } from "vue";
 import { useStringWs } from "@/composables/useStringWs";
 import WsLog from "@/components/WsLog.vue";
 import WsSendInput from "@/components/WsSendInput.vue";
+import ServerState from "./components/ServerState.vue";
+import { useServerStore } from "@/stores/UDPServer";
+import { useServerButton } from "./composables/useServerButton";
+
+const udpServerButtonConfig = useServerButton();
+const serverStore = useServerStore();
+serverStore.fetchState();
+
+const buttonConfig = udpServerButtonConfig.buttonConfig;
+
+async function handleServerAction() {
+  const action = buttonConfig.value.action;
+  if (action === "connect") {
+    await serverStore.startServer();
+  } else if (action === "disconnect") {
+    await serverStore.stopServer();
+  }
+}
 
 const wsUrl = import.meta.env.DEV
   ? "ws://localhost:8080/ws"
@@ -50,9 +68,23 @@ function handleSend(text: string) {
     <div class="drawer-side">
       <label for="drawer-sidebar" class="drawer-overlay"></label>
       <ul class="menu bg-base-200 min-h-full w-80 p-4">
-        <li><a href="#">Server</a></li>
+        <li><button onclick="server_modal.showModal()">Server</button></li>
         <li><a href="#">Clients</a></li>
       </ul>
     </div>
+    <!-- Server Modal -->
+    <dialog id="server_modal" class="modal">
+      <div class="modal-box">
+        <ServerState />
+        <div class="modal-action">
+          <form method="dialog">
+          <button :class="buttonConfig.class" :disabled="buttonConfig.disabled" @click="handleServerAction">
+            {{ buttonConfig.label }}
+          </button>
+          <button class="btn">Close</button>
+          </form>
+        </div>
+      </div>
+    </dialog>
   </div>
 </template>

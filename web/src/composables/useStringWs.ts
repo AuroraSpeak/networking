@@ -1,4 +1,5 @@
 import { onBeforeUnmount, ref } from "vue";
+import { useServerStore } from "@/stores/UDPServer";
 
 export function useStringWs(url: string) {
   const status = ref<"connecting" | "open" | "closed" | "error">("connecting");
@@ -19,6 +20,14 @@ export function useStringWs(url: string) {
     };
 
     ws.onmessage = (ev) => {
+      console.log("WebSocket message received:", ev.data);
+      if (typeof ev.data === "string") {
+        if (ev.data === "uss") {
+          const serverStore = useServerStore();
+          serverStore.fetchState();
+          return;
+        }
+      }
       lines.value.push(String(ev.data));
     };
 
