@@ -12,7 +12,7 @@ import (
 
 func main() {
 	logger.Setup()
-	server := web.NewServer(8080)
+	server := web.NewServer(8080, 9090)
 
 	// Starte Server in Goroutine
 	go func() {
