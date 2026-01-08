@@ -46,15 +46,15 @@ func (s *Server) stopUDPServer(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) getUDPServerState(w http.ResponseWriter, r *http.Request) {
 	s.mu.Lock()
-	udpServer := s.udpServer
+	state := s.udpServer.ServerState
 	s.mu.Unlock()
 
-	if udpServer == nil {
+	if s.udpServer == nil {
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(`{"shouldStop":false,"isAlive":false}`))
 		return
 	}
-	b, err := json.Marshal(udpServer.ServerState)
+	b, err := json.Marshal(state)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		log.WithError(err).Error("Can't marshal UDP Server State to json")
