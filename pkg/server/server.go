@@ -2,6 +2,8 @@ package server
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"net"
 	"sync"
 )
@@ -24,26 +26,34 @@ type Server struct {
 
 	// incoming message channel
 	IncomingCh chan []byte
+
+	// send command internal channel
+	OutCommandCh chan InternalCommand
 }
 
 type ServerState struct {
 	// updated says if the server Stated updated
-	updated    bool
-	ShouldStop bool
-	IsAlive    bool
+	updated    bool `json:"-"`
+	ShouldStop bool `json:"shouldStop"`
+	IsAlive    bool `json:"isAlive"`
 }
 
 // NOTE: Server functions
 
 func NewServer(port int, ctx context.Context) *Server {
 	return &Server{
-		Port:        port,
-		remoteConns: new(sync.Map),
-		ctx:         ctx,
+		Port:         port,
+		remoteConns:  new(sync.Map),
+		IncomingCh:   make(chan []byte),
+		OutCommandCh: make(chan InternalCommand),
+		ctx:          ctx,
 	}
 }
 
 func (s *Server) Run() error {
+	if s.IsAlive {
+		return errors.New("server is already running")
+	}
 	addr := net.UDPAddr{
 		IP:   net.IPv4(0, 0, 0, 0),
 		Port: s.Port,
@@ -54,8 +64,7 @@ func (s *Server) Run() error {
 		return err
 	}
 	defer s.conn.Close()
-	s.IsAlive = true
-	s.ServerState.IsAlive = true
+	s.setIsAlive(true)
 
 	// Infinite loop that listens for incoming UDP packets
 	for !s.shouldStop {
@@ -87,8 +96,8 @@ func (s *Server) Run() error {
 			})
 		}()
 	}
-	s.IsAlive = false
-	s.ServerState.IsAlive = false
+	fmt.Println("Server Stopped")
+	s.setIsAlive(false)
 	return nil
 }
 
@@ -125,6 +134,14 @@ func (s *Server) Stop() {
 }
 
 func (s *Server) setShouldStop() {
+	s.OutCommandCh <- CmdUpdateServerState
 	s.updated = true
 	s.shouldStop = true
+}
+
+func (s *Server) setIsAlive(val bool) {
+	s.OutCommandCh <- CmdUpdateServerState
+	s.updated = true
+	s.IsAlive = val
+	s.ServerState.IsAlive = val
 }
