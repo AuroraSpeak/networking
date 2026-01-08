@@ -10,7 +10,6 @@ package server
 import (
 	"context"
 	"errors"
-	"fmt"
 	"net"
 	"sync"
 	"sync/atomic"
@@ -49,9 +48,7 @@ type Server struct {
 	IsAlive    int32
 	shouldStop int32
 
-	// incoming message channel
-	IncomingCh chan []byte
-	wg         sync.WaitGroup
+	wg sync.WaitGroup
 
 	// send command internal channel
 	OutCommandCh chan InternalCommand
@@ -77,7 +74,6 @@ func NewServer(port int, ctx context.Context) *Server {
 	return &Server{
 		Port:         port,
 		remoteConns:  new(sync.Map),
-		IncomingCh:   make(chan []byte, 10),
 		OutCommandCh: make(chan InternalCommand, 10),
 		ctx:          ctx,
 		packetRouter: router.NewPacketRouter(),
@@ -139,18 +135,12 @@ func (s *Server) Run() error {
 		if _, ok := s.remoteConns.Load(remoteAddr.String()); !ok {
 			s.remoteConns.Store(remoteAddr.String(), remoteAddr)
 		}
-		select {
-		case s.IncomingCh <- buf[:n]:
-		case <-s.ctx.Done():
-			return nil
-		}
 
 		if err := s.packetRouter.HandlePacket("", buf[:n]); err != nil {
 			log.WithError(err).Error("Error handling packet")
 			continue
 		}
 	}
-	fmt.Println("Server Stopped")
 	s.setIsAlive(false)
 	return nil
 }
