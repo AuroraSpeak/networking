@@ -12,6 +12,19 @@ export default defineConfig({
     vueDevTools(),
     tailwindcss(),
   ],
+  server: {
+    proxy: {
+      '/ws': {
+        target: 'ws://localhost:8080/ws',
+        changeOrigin: true,
+        ws: true,
+      },
+      '/api': {
+        target: 'http://localhost:8080',
+        changeOrigin: true,
+      },
+    }
+  },
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url))
