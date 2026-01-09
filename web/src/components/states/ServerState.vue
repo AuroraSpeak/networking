@@ -12,7 +12,7 @@ onUnmounted(() => {
 });
 
 const lastUpdatedFormatted = computed(() => {
-    if (!serverStore.lastUpdated) return 'Nie';
+    if (!serverStore.lastUpdated) return 'Never updated';
     const date = new Date(serverStore.lastUpdated);
     return date.toLocaleTimeString('de-DE');
 });
@@ -22,8 +22,8 @@ const lastUpdatedFormatted = computed(() => {
     <div class="space-y-4">
         <div class="flex items-center gap-2">
             <span class="badge"
-                :class="serverStore.isAlive ? 'badge-success' : serverStore.shouldStop ? 'badge-warning' : 'badge-ghost'">
-                {{ serverStore.isAlive ? 'Running' : serverStore.shouldStop ? 'Stopping' : 'Stopped' }}
+                :class="serverStore.ServerState?.isAlive ? 'badge-success' : serverStore.ServerState?.shouldStop ? 'badge-warning' : 'badge-ghost'">
+                {{ serverStore.ServerState?.isAlive ? 'Running' : serverStore.ServerState?.shouldStop ? 'Stopping' : 'Stopped' }}
             </span>
             <span v-if="serverStore.error" class="text-error text-sm">{{ serverStore.error }}</span>
             <span v-if="serverStore.loading" class="loading loading-spinner loading-xs"></span>
@@ -38,11 +38,11 @@ const lastUpdatedFormatted = computed(() => {
                 </div>
                 <div class="stat">
                     <div class="stat-title">Server läuft</div>
-                    <div class="stat-value text-sm">{{ serverStore.isAlive ? 'Ja' : 'Nein' }}</div>
+                    <div class="stat-value text-sm">{{ serverStore.ServerState?.isAlive ? 'Ja' : 'Nein' }}</div>
                 </div>
                 <div class="stat">
                     <div class="stat-title">Wird gestoppt</div>
-                    <div class="stat-value text-sm">{{ serverStore.shouldStop ? 'Ja' : 'Nein' }}</div>
+                    <div class="stat-value text-sm">{{ serverStore.ServerState?.shouldStop ? 'Ja' : 'Nein' }}</div>
                 </div>
                 <div class="stat">
                     <div class="stat-title">Letzte Aktualisierung</div>
