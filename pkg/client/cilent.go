@@ -12,13 +12,10 @@ import (
 	"fmt"
 	"net"
 	"sync"
-	"time"
 
 	"github.com/aura-speak/networking/pkg/router"
 	log "github.com/sirupsen/logrus"
 )
-
-// TODO: Move to the PacketRouter Later
 
 // Gedanken:
 // 	- ein isAlive wie im server, aber dies wird nachher über das protokoll gehändelt
@@ -46,6 +43,8 @@ type Client struct {
 	ctx context.Context
 	wg  sync.WaitGroup
 
+	ClientState
+
 	// Communication Channels
 	// Client -> Server
 	sendCh chan []byte
@@ -57,10 +56,13 @@ type Client struct {
 	packetRouter *router.PacketRouter
 
 	running bool
+
+	// OutCommandCh sends internal commands to the web server (only used in debug builds)
+	OutCommandCh chan InternalCommand
 }
 
 // NewClient creates a new UDP Client it takes the Host, Port and timeout of the Client
-func NewClient(Host string, Port int, timeout time.Duration) *Client {
+func NewClient(Host string, Port int) *Client {
 	ctx := context.Background()
 	c := &Client{
 		Host:         Host,
@@ -98,6 +100,7 @@ func (c *Client) Run() error {
 		return err
 	}
 	c.running = true
+	c.SetRunningState(true)
 
 	c.wg.Go(func() {
 		c.recvLoop()
@@ -107,9 +110,24 @@ func (c *Client) Run() error {
 		c.sendLoop()
 	})
 	defer c.conn.Close()
+	log.Info("Starting client")
 	c.wg.Wait()
 	c.running = false
+	c.SetRunningState(false)
+	log.Info("Client Stopped")
 	return nil
+}
+
+// Stop stops the Client
+// It stops the Client and closes the connection to the Server
+func (c *Client) Stop() {
+	c.running = false
+	c.SetRunningState(false)
+	if c.conn != nil {
+		c.conn.Close()
+	}
+	c.wg.Wait()
+	log.Info("Client Stopped")
 }
 
 // Send sends a packet to the Server
