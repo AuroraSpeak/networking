@@ -1,14 +1,13 @@
 import { defineStore } from "pinia"
+import { createApi } from "@/api"
+import type { ServerState } from "@/api/types"
 
-type UpdateStateResponse = {
-  isAlive: boolean
-  shouldStop: boolean
-}
+// Create API instance for use in the store
+const api = createApi(import.meta.env.VITE_API_URL || "http://localhost:8080")
 
 export const useServerStore = defineStore("server", {
   state: () => ({
-    isAlive: false,
-    shouldStop: false,
+    ServerState: null as ServerState | null,
     lastUpdated: null as number | null,
 
     // optional UX bits
@@ -19,16 +18,15 @@ export const useServerStore = defineStore("server", {
   getters: {
     status(state): "offline" | "running" | "stopping" | "unknown" {
       if (state.lastUpdated === null) return "unknown"
-      if (!state.isAlive) return "offline"
-      if (state.shouldStop) return "stopping"
+      if (!state.ServerState?.isAlive) return "offline"
+      if (state.ServerState?.shouldStop) return "stopping"
       return "running"
     },
   },
 
   actions: {
-    applyServerState(payload: UpdateStateResponse) {
-      this.isAlive = payload.isAlive
-      this.shouldStop = payload.shouldStop
+    applyServerState(payload: ServerState) {
+      this.ServerState = payload
       this.lastUpdated = Date.now()
     },
 
@@ -36,15 +34,7 @@ export const useServerStore = defineStore("server", {
       this.loading = true
       this.error = null
       try {
-        const res = await fetch("/udp/server-state", {
-          method: "GET",
-          headers: { "Accept": "application/json" },
-          cache: "no-store",
-        })
-
-        if (!res.ok) throw new Error(`HTTP ${res.status}`)
-
-        const data = (await res.json()) as UpdateStateResponse
+        const data = await api.server.getState()
         this.applyServerState(data)
       } catch (e: any) {
         this.error = e?.message ?? "Failed to fetch server state"
@@ -57,14 +47,7 @@ export const useServerStore = defineStore("server", {
       this.loading = true
       this.error = null
       try {
-        const res = await fetch("/udp/server-start", {
-          method: "POST",
-          headers: { "Accept": "application/json" },
-        })
-
-        if (!res.ok) throw new Error(`HTTP ${res.status}`)
-
-        // Aktualisiere den Status nach dem Start
+        await api.server.start()
         await this.fetchState()
       } catch (e: any) {
         this.error = e?.message ?? "Failed to start server"
@@ -77,14 +60,7 @@ export const useServerStore = defineStore("server", {
       this.loading = true
       this.error = null
       try {
-        const res = await fetch("/udp/server-stop", {
-          method: "POST",
-          headers: { "Accept": "application/json" },
-        })
-
-        if (!res.ok) throw new Error(`HTTP ${res.status}`)
-
-        // Aktualisiere den Status nach dem Stoppen
+        await api.server.stop()
         await this.fetchState()
       } catch (e: any) {
         this.error = e?.message ?? "Failed to stop server"

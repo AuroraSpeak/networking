@@ -1,11 +1,13 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, ref } from "vue";
 import { useStringWs } from "@/composables/useStringWs";
 import WsLog from "@/components/WsLog.vue";
 import WsSendInput from "@/components/WsSendInput.vue";
-import ServerState from "./components/ServerState.vue";
+import ServerState from "./components/states/ServerState.vue";
 import { useServerStore } from "@/stores/UDPServer";
 import { useServerButton } from "./composables/useServerButton";
+import ClientsState from "./components/states/ClientsState.vue";
+import Overlay from "@/components/Overlay.vue";
 
 const udpServerButtonConfig = useServerButton();
 const serverStore = useServerStore();
@@ -22,11 +24,31 @@ async function handleServerAction() {
   }
 }
 
+type UsUEvent = { id: number, seq: number };
+const NewClient = ref(false);
+const usuEvent = ref<UsUEvent | null>(null);
+let seq = 0;
 const wsUrl = import.meta.env.DEV
   ? "ws://localhost:8080/ws"
   : (location.protocol === "https:" ? "wss://" : "ws://") + location.host + "/ws";
 
-const { status, lines, error, send, connect, close } = useStringWs(wsUrl);
+const { status, lines, error, send, connect, close } = useStringWs(wsUrl, {
+  onMessage: (data) => {
+    // Spezielle Behandlung für "uss" Nachricht (Update Server State)
+    if (data === "uss") {
+      serverStore.fetchState();
+    } else if (data === "cnu") {
+      console.log("cnu");
+      NewClient.value = true;
+    } else if (data.startsWith("usu,")) {
+      const parts = data.split(",");
+      if (parts.length > 1 && parts[1]) {
+        const clientId = parseInt(parts[1], 10);
+        usuEvent.value = { id: clientId, seq: seq++ };
+      }
+    }
+  },
+});
 
 const canSend = computed(() => status.value === "open");
 
@@ -34,6 +56,9 @@ function handleSend(text: string) {
   const ok = send(text);
   if (!ok) lines.value.push("[ws] not connected");
 }
+
+// clients overlay
+const clientsOverlay = ref(false);
 </script>
 
 <template>
@@ -69,7 +94,7 @@ function handleSend(text: string) {
       <label for="drawer-sidebar" class="drawer-overlay"></label>
       <ul class="menu bg-base-200 min-h-full w-80 p-4">
         <li><button onclick="server_modal.showModal()">Server</button></li>
-        <li><a href="#">Clients</a></li>
+        <li><button @click="clientsOverlay = true">Clients</button></li>
       </ul>
     </div>
     <!-- Server Modal -->
@@ -86,5 +111,15 @@ function handleSend(text: string) {
         </div>
       </div>
     </dialog>
+    <!-- Clients Overlay -->
+    <Overlay
+      v-model="clientsOverlay"
+      title="Clients"
+      widthClass="w-11/12 w-[90vw]"
+      maxWClass="max-w-none"
+      heightClass="h-11/12"
+    >
+      <ClientsState :needs-update="NewClient" :usu-event="usuEvent" @done:clients-update="NewClient = false" />
+    </Overlay>
   </div>
 </template>
