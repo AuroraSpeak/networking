@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"strconv"
 	"sync"
 	"time"
 
@@ -29,38 +30,33 @@ type Server struct {
 	wsHub *WebSocketHub
 
 	// UDP Parts
-	udpServer  *server.Server
-	udpClients map[*client.Client]bool
+	udpServer *server.Server
+	// udpClientWrapper
+	udpClients map[string]udpClient
 	// Communicate from UDP Server and Clients to WebSocket Hub
 	messageCh chan []InternalMessage
+	// Client command channels mapped by client ID
+	clientCommandChs map[int]chan client.InternalCommand
 }
 
 func NewServer(port int, udpPort int) *Server {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &Server{
-		Port:       port,
-		mu:         sync.Mutex{},
-		ctx:        ctx,
-		cancel:     cancel,
-		wsHub:      NewWebSocketHub(ctx),
-		config:     Config{UDPPort: udpPort},
-		udpClients: map[*client.Client]bool{},
+		Port:             port,
+		mu:               sync.Mutex{},
+		ctx:              ctx,
+		cancel:           cancel,
+		wsHub:            NewWebSocketHub(ctx),
+		config:           Config{UDPPort: udpPort},
+		udpClients:       make(map[string]udpClient),
+		clientCommandChs: make(map[int]chan client.InternalCommand),
 	}
 }
 
 func (s *Server) Run() error {
-	mux := http.NewServeMux()
-	mux.Handle("/ws", websocket.Handler(s.handleWS))
-	mux.Handle("/", http.FileServer(http.Dir("./bin")))
-
-	// UDP Server handlers
-	mux.HandleFunc("/udp/server-start", s.startUDPServer)
-	mux.HandleFunc("/udp/server-stop", s.stopUDPServer)
-	mux.HandleFunc("/udp/server-state", s.getUDPServerState)
-
 	s.httpServer = &http.Server{
 		Addr:    fmt.Sprintf(":%d", s.Port),
-		Handler: mux,
+		Handler: s.registerRoutes(),
 	}
 
 	s.shutdownWg.Go(func() {
@@ -77,9 +73,45 @@ func (s *Server) handleWS(ws *websocket.Conn) {
 	}
 }
 
+// handleClientCommands listens for commands from a specific UDP client
+func (s *Server) handleClientCommands(clientID int, cmdCh chan client.InternalCommand) {
+	s.shutdownWg.Go(func() {
+		for {
+			select {
+			case cmd := <-cmdCh:
+				switch cmd {
+				case client.CmdUpdateClientState:
+					s.mu.Lock()
+					// Find udpClient by ID and update running field
+					for name, uc := range s.udpClients {
+						if uc.id == clientID {
+							// Update running field from ClientState
+							running := uc.client.ClientState.Running
+							uc.running = running == 1
+							// Update the map entry
+							s.udpClients[name] = uc
+
+							// Broadcast to all WebSocket Clients that the UDP Client State has changed
+							if s.wsHub != nil {
+								s.wsHub.Broadcast([]byte("usu" + strconv.Itoa(clientID)))
+							}
+							break
+						}
+					}
+					s.mu.Unlock()
+				}
+			case <-s.ctx.Done():
+				return
+			}
+		}
+	})
+}
+
 // Handles all internal communications to the web server
 // Avalible Commands:
 // uss: tells the clients, that the server state has been updated
+// usu: tells the clients, that a udp client state has been updated
+// cnu: tells the web server, that a new udp client has been started
 func (s *Server) handleInternal() {
 	s.shutdownWg.Go(func() {
 		// Brodcast through on UDP Server State Changes
