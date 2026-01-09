@@ -6,7 +6,6 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
-	"time"
 
 	"github.com/aura-speak/networking/pkg/client"
 	log "github.com/sirupsen/logrus"
@@ -16,10 +15,9 @@ func main() {
 	// Standardwerte
 	host := "localhost"
 	port := 8080
-	timeout := 30 * time.Second
 
 	// Client erstellen
-	c := client.NewClient(host, port, timeout)
+	c := client.NewClient(host, port)
 
 	// Message Handler registrieren
 	c.OnPacket("", func(msg []byte) error {
