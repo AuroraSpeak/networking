@@ -5,15 +5,15 @@ build-web:
 
 build-with-web: build-web
 	@echo "Building with web..."
-	go build -o bin/web ./cmd/web
+	go build -tags=debug -o bin/web ./cmd/web
 
 build-server-headless:
 	@echo "Building server headless..."
-	go build -o bin/web ./cmd/web
+	go build -tags=debug -o bin/web ./cmd/web
 
 run: build-server-headless
 	@echo "Running headless..."
-	./bin/web
+	./bin/web -tags=debug
 
 dev-web:
 	@echo "Running web in development mode..."
@@ -21,26 +21,26 @@ dev-web:
 
 run-with-web: build-with-web
 	@echo "Running with web..."
-	./bin/web
+	./bin/web -tags=debug
 
 clean:
 	rm -rf ./bin
 
 make-server-headless:
 	@echo "Building server headless..."
-	go build -o bin/server ./cmd/server
+	go build -tags=debug -o bin/server ./cmd/server
 
 run-server-headless: make-server-headless
 	@echo "Running server headless..."
-	./bin/server
+	./bin/server -tags=debug
 
 make-client:
 	@echo "Building client..."
-	go build -o bin/client ./cmd/client
+	go build -tags=debug -o bin/client ./cmd/client
 
 run-client: make-client
 	@echo "Running client..."
-	./bin/client
+	./bin/client -tags=debug
 
 gen-docs:
 	@echo "Generating docs..."
@@ -49,5 +49,10 @@ gen-docs:
 run-docs: gen-docs
 	@echo "Running docs..."
 	godoc -http=:6060
+
+run-server-web-noui:
+	@echo "Running server web without UI..."
+	go build -tags=debug -o bin/web ./cmd/web
+	./bin/web
 
 .PHONY: build-web build-with-web dev-web run-with-web clean make-server-headless run-server-headless gen-docs run-docs run-client make-client
