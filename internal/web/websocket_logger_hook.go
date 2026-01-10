@@ -26,8 +26,6 @@ func (wh *WebSocketHook) Fire(entry *logrus.Entry) error {
 	if wh.hub == nil {
 		return nil
 	}
-	a, err := entry.String()
-	fmt.Println("[ENTRY]:" + a)
 	b, err := wh.formatter.Format(entry)
 	if err != nil {
 		fmt.Println(err)

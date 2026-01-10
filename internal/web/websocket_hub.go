@@ -44,18 +44,6 @@ func NewWebSocketHub(ctx context.Context) *WebSocketHub {
 	return wsHub
 }
 
-func (wh *WebSocketHub) HandleWS(ws *websocket.Conn) {
-	wh.mu.Lock()
-	wh.conns[ws] = true
-	wh.mu.Unlock()
-
-	wh.readLoop(ws)
-
-	wh.mu.Lock()
-	delete(wh.conns, ws)
-	wh.mu.Unlock()
-}
-
 func (wh *WebSocketHub) readLoop(ws *websocket.Conn) {
 	buf := make([]byte, 1024)
 	for {
@@ -89,6 +77,8 @@ func (wh *WebSocketHub) readLoop(ws *websocket.Conn) {
 }
 
 func (wh *WebSocketHub) Broadcast(b []byte) {
+	// NOTE: Do NOT call log.Infof here! It would cause infinite recursion
+	// because the WebSocketHook calls Broadcast, which would call log.Infof again
 	wh.mu.Lock()
 	conns := make([]*websocket.Conn, 0, len(wh.conns))
 	for ws := range wh.conns {

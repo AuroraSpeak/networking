@@ -1,85 +1,23 @@
 package web
 
 import (
+	"encoding/json"
 	"math"
 	"net/http"
 	"strconv"
 	"strings"
-	"sync"
 
-	webutil "github.com/aura-speak/networking/internal/web/utils"
 	"github.com/aura-speak/networking/pkg/client"
 	log "github.com/sirupsen/logrus"
 )
 
-type ids struct {
-	nextID int
-	mu     sync.Mutex
-}
-
-var idCounter ids
-
-type datagramDirection int
-
-const (
-	ClientToServer = 1
-	ServerToClient = 2
-)
-
-type datagram struct {
-	Direction datagramDirection
-	message   []byte
-}
-
-func init() {
-	idCounter = ids{
-		nextID: 0,
-		mu:     sync.Mutex{},
-	}
-}
-
-func (i *ids) getNextID() int {
-	i.mu.Lock()
-	id := i.nextID
-	i.nextID++
-	i.mu.Unlock()
-	return id
-}
-
-type udpClient struct {
-	// ID of the client
-	id int
-	// The UDP client
-	client *client.Client
-	// name random chosen
-	name string
-	// Datagram by the user
-	datagrams []datagram
-	// is it running
-	running bool
-}
-
-func (s *Server) genUDPClient(port int) string {
-	name := webutil.GetFirstName()
-	id := idCounter.getNextID()
-	client := client.NewDebugClient("localhost", port, id)
-	s.udpClients[name] = udpClient{
-		id:        id,
-		client:    client,
-		name:      name,
-		datagrams: []datagram{},
-	}
-	// Register client command channel and start listening
-	s.clientCommandChs[id] = client.OutCommandCh
-	s.handleClientCommands(id, client.OutCommandCh)
-	log.Infof("UDP client started: %s with id %d", name, id)
-	return name
-}
-
 func (s *Server) startUDPClient(w http.ResponseWriter, r *http.Request) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	name := s.genUDPClient(s.Port)
+	name := s.genUDPClient(s.config.UDPPort)
+	s.udpClients[name].client.OnPacket("", func(msg []byte) error {
+		return s.handleAllClient(name, msg)
+	})
 	s.shutdownWg.Go(func() {
 		s.udpClients[name].client.Run()
 	})
@@ -294,4 +232,120 @@ func (s *Server) getAllUDPClientPaginated(w http.ResponseWriter, r *http.Request
 		Total:    total,
 	}
 	paginatedResponse.Send(w)
+}
+
+func (s *Server) sendDatagram(w http.ResponseWriter, r *http.Request) {
+	// Parse request body
+	var req SendDatagramRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		apiError := ApiError{
+			Code:    http.StatusBadRequest,
+			Message: "Invalid request body",
+			Details: err.Error(),
+		}
+		apiError.Send(w)
+		return
+	}
+
+	// Validate format
+	if req.Format != "hex" && req.Format != "text" {
+		apiError := ApiError{
+			Code:    http.StatusBadRequest,
+			Message: "Format must be 'hex' or 'text'",
+		}
+		apiError.Send(w)
+		return
+	}
+
+	// Find client by ID and validate (with lock)
+	s.mu.Lock()
+	var clientToSend *client.Client
+	var clientName string
+	var clientRunning bool
+	for name, uc := range s.udpClients {
+		if uc.id == req.Id {
+			clientToSend = uc.client
+			clientName = name
+			clientRunning = uc.running
+			break
+		}
+	}
+	s.mu.Unlock()
+
+	if clientToSend == nil {
+		apiError := ApiError{
+			Code:    http.StatusNotFound,
+			Message: "UDP client not found",
+		}
+		apiError.Send(w)
+		return
+	}
+
+	// Check if client is running
+	if !clientRunning {
+		apiError := ApiError{
+			Code:    http.StatusBadRequest,
+			Message: "Client is not running",
+		}
+		apiError.Send(w)
+		return
+	}
+
+	// Convert message to []byte based on format
+	messageBytes, err := convertMessageToBytes(req.Message, req.Format)
+	if err != nil {
+		apiError := ApiError{
+			Code:    http.StatusBadRequest,
+			Message: "Invalid hex string",
+			Details: err.Error(),
+		}
+		apiError.Send(w)
+		return
+	}
+
+	// Send message via client (außerhalb des Locks, damit es nicht blockiert)
+	if err := clientToSend.Send(messageBytes); err != nil {
+		apiError := ApiError{
+			Code:    http.StatusInternalServerError,
+			Message: "Failed to send datagram",
+			Details: err.Error(),
+		}
+		apiError.Send(w)
+		return
+	}
+
+	// Lock wieder holen für Map-Update
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	// Find client again (könnte sich geändert haben)
+	udpClient, ok := s.udpClients[clientName]
+	if !ok {
+		apiError := ApiError{
+			Code:    http.StatusNotFound,
+			Message: "UDP client not found",
+		}
+		apiError.Send(w)
+		return
+	}
+
+	// Store datagram in client's datagrams list
+	newDatagram := datagram{
+		Direction: ClientToServer,
+		Message:   messageBytes,
+	}
+	udpClient.datagrams = append(udpClient.datagrams, newDatagram)
+	s.udpClients[clientName] = udpClient
+
+	// Broadcast WebSocket update
+	if s.wsHub != nil {
+		s.wsHub.Broadcast([]byte("usu" + strconv.Itoa(req.Id)))
+	}
+
+	// Send success response
+	response := SendDatagramResponse{
+		Message: "Datagram sent successfully",
+	}
+	log.Infof("Datagram sent successfully: %s", string(messageBytes))
+	response.Send(w)
 }

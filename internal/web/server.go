@@ -32,7 +32,9 @@ type Server struct {
 	// UDP Parts
 	udpServer *server.Server
 	// udpClientWrapper
-	udpClients map[string]udpClient
+	udpClients      map[string]udpClient
+	clientMu        sync.Mutex
+	udpClientAction UDPClientActionData
 	// Communicate from UDP Server and Clients to WebSocket Hub
 	messageCh chan []InternalMessage
 	// Client command channels mapped by client ID

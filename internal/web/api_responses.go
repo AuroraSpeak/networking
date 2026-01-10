@@ -123,3 +123,23 @@ func (p *UDPClientPaginatedRespone) Send(w http.ResponseWriter) {
 	w.Write(b)
 	w.Write([]byte("\n"))
 }
+
+type SendDatagramRequest struct {
+	Id      int    `json:"id"`
+	Message string `json:"message"`
+	Format  string `json:"format"` // "hex" or "text"
+}
+
+type SendDatagramResponse struct {
+	Message string `json:"message"`
+}
+
+func (s *SendDatagramResponse) Send(w http.ResponseWriter) {
+	w.WriteHeader(http.StatusOK)
+	b, err := json.Marshal(s)
+	if err != nil {
+		log.WithError(err).Error("Can't marshal SendDatagramResponse to json")
+	}
+	w.Write(b)
+	w.Write([]byte("\n"))
+}

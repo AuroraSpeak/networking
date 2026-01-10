@@ -6,42 +6,6 @@ import (
 	"golang.org/x/net/websocket"
 )
 
-func corsMiddleware(next http.HandlerFunc) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		// Set CORS headers
-		w.Header().Set("Access-Control-Allow-Origin", "*")
-		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
-
-		// Handle preflight requests
-		if r.Method == "OPTIONS" {
-			w.WriteHeader(http.StatusOK)
-			return
-		}
-
-		// Call the next handler
-		next(w, r)
-	}
-}
-
-func corsWrapper(handler http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Set CORS headers
-		w.Header().Set("Access-Control-Allow-Origin", "*")
-		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
-
-		// Handle preflight requests
-		if r.Method == "OPTIONS" {
-			w.WriteHeader(http.StatusOK)
-			return
-		}
-
-		// Call the next handler
-		handler.ServeHTTP(w, r)
-	})
-}
-
 func (s *Server) registerRoutes() http.Handler {
 	mux := http.NewServeMux()
 	mux.Handle("/ws", websocket.Handler(s.handleWS))
@@ -54,6 +18,7 @@ func (s *Server) registerRoutes() http.Handler {
 
 	mux.HandleFunc("POST /api/client/start", s.startUDPClient)
 	mux.HandleFunc("POST /api/client/stop", s.stopUDPClient)
+	mux.HandleFunc("POST /api/client/send", s.sendDatagram)
 	mux.HandleFunc("GET /api/client/get/name", s.getUDPClientStateByName)
 	mux.HandleFunc("GET /api/client/get/id", s.getUDPClientStateById)
 	mux.HandleFunc("GET /api/client/get/all", s.getAllUDPClients)
