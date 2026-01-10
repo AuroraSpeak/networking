@@ -14,6 +14,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/aura-speak/networking/pkg/protocol"
 	"github.com/aura-speak/networking/pkg/router"
 	log "github.com/sirupsen/logrus"
 )
@@ -54,7 +55,7 @@ type Client struct {
 	// Sends errors from go Routines to main routine
 	errCh chan error
 
-	packetRouter *router.PacketRouter
+	packetRouter *router.ClientPacketRouter
 
 	running bool
 
@@ -72,7 +73,7 @@ func NewClient(Host string, Port int) *Client {
 		recvCh:       make(chan []byte),
 		errCh:        make(chan error),
 		ctx:          ctx,
-		packetRouter: router.NewPacketRouter(),
+		packetRouter: router.NewClientPacketRouter(),
 	}
 	return c
 }
@@ -81,12 +82,12 @@ func NewClient(Host string, Port int) *Client {
 //
 // Example:
 //
-//	client.OnPacket("text", func(packet []byte) error {
+//	client.OnPacket(protocol.PacketTypeDebugHello, func(packet *protocol.Packet) error {
 //		fmt.Println("Received text packet:", string(packet))
 //		return nil
 //	})
-func (c *Client) OnPacket(packetType string, handler router.PacketHandler) {
-	c.packetRouter.OnPacket("", handler)
+func (c *Client) OnPacket(packetType protocol.PacketType, handler router.ClientPacketHandler) {
+	c.packetRouter.OnPacket(packetType, handler)
 }
 
 // Run starts the Client and connects to the Server
@@ -100,6 +101,7 @@ func (c *Client) Run() error {
 	if err != nil {
 		return err
 	}
+
 	c.running = true
 	c.SetRunningState(true)
 
@@ -115,11 +117,13 @@ func (c *Client) Run() error {
 		c.handleErrors()
 	})
 	defer c.conn.Close()
-	log.Info("Starting client")
+
+	log.WithField("caller", "client").Info("Starting client")
+	c.debugHello()
 	c.wg.Wait()
 	c.running = false
 	c.SetRunningState(false)
-	log.Info("Client Stopped")
+	log.WithField("caller", "client").Info("Client Stopped")
 	return nil
 }
 
@@ -132,7 +136,7 @@ func (c *Client) Stop() {
 		c.conn.Close()
 	}
 	c.wg.Wait()
-	log.Info("Client Stopped")
+	log.WithField("caller", "client").Info("Client Stopped")
 }
 
 // Send sends a packet to the Server
@@ -194,12 +198,17 @@ func (c *Client) recvLoop() {
 		copy(dst, buffer[:n])
 		if string(dst) == "STOP" {
 			c.ctx.Done()
-			log.Info("Received STOP message from server")
+			log.WithField("caller", "client").Info("Received STOP message from server")
 			return
 		}
 
-		if err := c.packetRouter.HandlePacket("", dst); err != nil {
-			log.WithError(err).Error("Error handling packet")
+		packet, err := protocol.Decode(dst)
+		if err != nil {
+			log.WithField("caller", "client").WithError(err).Error("Error decoding packet")
+			continue
+		}
+		if err := c.packetRouter.HandlePacket(packet); err != nil {
+			log.WithField("caller", "client").WithError(err).Error("Error handling packet")
 			continue
 		}
 	}
@@ -211,7 +220,7 @@ func (c *Client) handleErrors() {
 		case <-c.ctx.Done():
 			return
 		case err := <-c.errCh:
-			log.WithError(err).Error("Error in client")
+			log.WithField("caller", "client").WithError(err).Error("Error in client")
 			continue
 		}
 	}
