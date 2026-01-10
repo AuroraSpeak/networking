@@ -2,6 +2,7 @@ package router
 
 import (
 	"errors"
+	"fmt"
 	"sync"
 
 	"github.com/aura-speak/networking/pkg/protocol"
@@ -44,8 +45,23 @@ func (r *ServerPacketRouter) HandlePacket(packet *protocol.Packet, clientAddr st
 	}
 	handler, ok := r.handlers.Load(packet.PacketHeader.PacketType)
 	if !ok {
-		return errors.New("no handler found for packet type")
+		strPacketType, exists := protocol.PacketTypeMapType[packet.PacketHeader.PacketType]
+		if !exists {
+			strPacketType = fmt.Sprintf("Unknown(0x%02X)", packet.PacketHeader.PacketType)
+		}
+		return fmt.Errorf("no handler found for packet type: %s", strPacketType)
 	}
 	handlerFunc := handler.(ServerPacketHandler)
 	return handlerFunc(packet, clientAddr)
+}
+
+func (r *ServerPacketRouter) ListRoutes() {
+	r.handlers.Range(func(key, value interface{}) bool {
+		strPacketType, exists := protocol.PacketTypeMapType[key.(protocol.PacketType)]
+		if !exists {
+			strPacketType = fmt.Sprintf("Unknown(0x%02X)", key.(protocol.PacketType))
+		}
+		fmt.Printf("Packet type: %s\n", strPacketType)
+		return true
+	})
 }
