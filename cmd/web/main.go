@@ -8,6 +8,7 @@ import (
 
 	"github.com/aura-speak/networking/internal/logger"
 	"github.com/aura-speak/networking/internal/web"
+	log "github.com/sirupsen/logrus"
 )
 
 func main() {
@@ -17,6 +18,7 @@ func main() {
 	// Starte Server in Goroutine
 	go func() {
 		if err := server.Run(); err != nil {
+			log.WithError(err).Error("error starting server")
 			// Ignoriere ErrServerClosed, das ist normal beim Shutdown
 			if err.Error() != "http: Server closed" {
 				panic(err)

@@ -7,6 +7,4 @@ func Setup() {
 		DisableColors: true,
 		FullTimestamp: false,
 	})
-
-	logrus.SetReportCaller(true)
 }
