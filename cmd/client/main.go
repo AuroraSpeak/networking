@@ -8,7 +8,6 @@ import (
 	"syscall"
 
 	"github.com/aura-speak/networking/pkg/client"
-	"github.com/aura-speak/networking/pkg/protocol"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -21,8 +20,8 @@ func main() {
 	c := client.NewClient(host, port)
 
 	// Message Handler registrieren
-	c.OnPacket(protocol.PacketTypeDebugAny, func(packet *protocol.Packet) error {
-		fmt.Printf("Received debug any packet: %s\n", string(packet.Payload))
+	c.OnPacket("", func(msg []byte) error {
+		fmt.Printf("Empfangen: %s\n", string(msg))
 		return nil
 	})
 

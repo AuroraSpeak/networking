@@ -25,7 +25,7 @@ func (s *Server) genUDPClient(port int) string {
 	// Register client command channel and start listening
 	s.clientCommandChs[id] = client.OutCommandCh
 	s.handleClientCommands(id, client.OutCommandCh)
-	log.WithField("caller", "web").Infof("UDP client started: %s with id %d", name, id)
+	log.Infof("UDP client started: %s with id %d", name, id)
 	return name
 }
 
@@ -47,7 +47,7 @@ func (s *Server) handleAllClient(name string, packet []byte) error {
 
 	udpClient, ok := s.udpClients[name]
 	if !ok {
-		log.WithField("caller", "web").Errorf("UDP client not found: %s", name)
+		log.Errorf("UDP client not found: %s", name)
 		return fmt.Errorf("UDP client not found: %s", name)
 	}
 

@@ -14,7 +14,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/aura-speak/networking/pkg/protocol"
 	"github.com/aura-speak/networking/pkg/router"
 	log "github.com/sirupsen/logrus"
 )
@@ -55,7 +54,7 @@ type Client struct {
 	// Sends errors from go Routines to main routine
 	errCh chan error
 
-	packetRouter *router.ClientPacketRouter
+	packetRouter *router.PacketRouter
 
 	running bool
 
@@ -73,7 +72,7 @@ func NewClient(Host string, Port int) *Client {
 		recvCh:       make(chan []byte),
 		errCh:        make(chan error),
 		ctx:          ctx,
-		packetRouter: router.NewClientPacketRouter(),
+		packetRouter: router.NewPacketRouter(),
 	}
 	return c
 }
@@ -82,12 +81,12 @@ func NewClient(Host string, Port int) *Client {
 //
 // Example:
 //
-//	client.OnPacket(protocol.PacketTypeDebugHello, func(packet *protocol.Packet) error {
+//	client.OnPacket("text", func(packet []byte) error {
 //		fmt.Println("Received text packet:", string(packet))
 //		return nil
 //	})
-func (c *Client) OnPacket(packetType protocol.PacketType, handler router.ClientPacketHandler) {
-	c.packetRouter.OnPacket(packetType, handler)
+func (c *Client) OnPacket(packetType string, handler router.PacketHandler) {
+	c.packetRouter.OnPacket("", handler)
 }
 
 // Run starts the Client and connects to the Server
@@ -101,7 +100,6 @@ func (c *Client) Run() error {
 	if err != nil {
 		return err
 	}
-	c.debugHello()
 	c.running = true
 	c.SetRunningState(true)
 
@@ -117,11 +115,11 @@ func (c *Client) Run() error {
 		c.handleErrors()
 	})
 	defer c.conn.Close()
-	log.WithField("caller", "client").Info("Starting client")
+	log.Info("Starting client")
 	c.wg.Wait()
 	c.running = false
 	c.SetRunningState(false)
-	log.WithField("caller", "client").Info("Client Stopped")
+	log.Info("Client Stopped")
 	return nil
 }
 
@@ -134,7 +132,7 @@ func (c *Client) Stop() {
 		c.conn.Close()
 	}
 	c.wg.Wait()
-	log.WithField("caller", "client").Info("Client Stopped")
+	log.Info("Client Stopped")
 }
 
 // Send sends a packet to the Server
@@ -194,12 +192,16 @@ func (c *Client) recvLoop() {
 		// TODO: same here change later when we exacly know the max msg length of a packet in the Protocol
 		dst := make([]byte, n)
 		copy(dst, buffer[:n])
-		packet, err := protocol.Decode(dst)
-		if err != nil {
-			log.WithField("caller", "client").WithError(err).Error("Error decoding packet")
+		if string(dst) == "STOP" {
+			c.ctx.Done()
+			log.Info("Received STOP message from server")
+			return
+		}
+
+		if err := c.packetRouter.HandlePacket("", dst); err != nil {
+			log.WithError(err).Error("Error handling packet")
 			continue
 		}
-		c.packetRouter.HandlePacket(packet)
 	}
 }
 
@@ -209,7 +211,7 @@ func (c *Client) handleErrors() {
 		case <-c.ctx.Done():
 			return
 		case err := <-c.errCh:
-			log.WithField("caller", "client").WithError(err).Error("Error in client")
+			log.WithError(err).Error("Error in client")
 			continue
 		}
 	}

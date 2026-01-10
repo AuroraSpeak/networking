@@ -57,3 +57,10 @@ export interface SendDatagramRequest {
     message: string;
     format: "hex" | "text";
 }
+
+export interface LogEntry {
+    level: string;
+    msg: string;
+    time: string;
+    [key: string]: any; // Für zukünftige dynamische Felder
+}

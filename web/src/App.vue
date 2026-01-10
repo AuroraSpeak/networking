@@ -8,10 +8,13 @@ import { useServerStore } from "@/stores/UDPServer";
 import { useServerButton } from "./composables/useServerButton";
 import ClientsState from "./components/states/ClientsState.vue";
 import Overlay from "@/components/Overlay.vue";
+import { useApi } from "@/api/useApi";
 
 const udpServerButtonConfig = useServerButton();
 const serverStore = useServerStore();
 serverStore.fetchState();
+
+const api = useApi();
 
 const buttonConfig = udpServerButtonConfig.buttonConfig;
 
@@ -81,6 +84,12 @@ const clientsOverlay = ref(false);
           <span v-if="error" class="text-error text-sm">{{ error }}</span>
 
           <div class="ml-auto flex gap-2">
+            <button class="btn btn-primary" @click="api.udpClients.start()">
+              Start Client
+            </button>
+            <button :class="buttonConfig.class" :disabled="buttonConfig.disabled" @click="handleServerAction">
+              {{ buttonConfig.label }}
+            </button>
             <button class="btn btn-sm" @click="connect">Connect</button>
             <button class="btn btn-sm btn-outline" @click="close">Close</button>
           </div>
@@ -104,22 +113,17 @@ const clientsOverlay = ref(false);
         <ServerState />
         <div class="modal-action">
           <form method="dialog">
-          <button :class="buttonConfig.class" :disabled="buttonConfig.disabled" @click="handleServerAction">
-            {{ buttonConfig.label }}
-          </button>
-          <button class="btn">Close</button>
+            <button :class="buttonConfig.class" :disabled="buttonConfig.disabled" @click="handleServerAction">
+              {{ buttonConfig.label }}
+            </button>
+            <button class="btn">Close</button>
           </form>
         </div>
       </div>
     </dialog>
     <!-- Clients Overlay -->
-    <Overlay
-      v-model="clientsOverlay"
-      title="Clients"
-      widthClass="w-11/12 w-[90vw]"
-      maxWClass="max-w-none"
-      heightClass="h-11/12"
-    >
+    <Overlay v-model="clientsOverlay" title="Clients" widthClass="w-11/12 w-[90vw]" maxWClass="max-w-none"
+      heightClass="h-11/12">
       <ClientsState :needs-update="NewClient" :usu-event="usuEvent" @done:clients-update="NewClient = false" />
     </Overlay>
   </div>

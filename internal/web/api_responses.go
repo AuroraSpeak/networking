@@ -21,7 +21,7 @@ func (e *ApiError) Send(w http.ResponseWriter) {
 	w.WriteHeader(e.Code)
 	b, err := json.Marshal(e)
 	if err != nil {
-		log.WithError(err).Error("Can't marshal ApiError to json")
+		log.WithField("caller", "web").WithError(err).Error("Can't marshal ApiError to json")
 	}
 	w.Write(b)
 	w.Write([]byte("\n"))
@@ -36,7 +36,7 @@ func (s *ApiSuccess) Send(w http.ResponseWriter) {
 	w.WriteHeader(http.StatusOK)
 	b, err := json.Marshal(s)
 	if err != nil {
-		log.WithError(err).Error("Can't marshal ApiSuccess to json")
+		log.WithField("caller", "web").WithError(err).Error("Can't marshal ApiSuccess to json")
 	}
 	w.Write(b)
 	w.Write([]byte("\n"))
@@ -51,7 +51,7 @@ func (s *ServerStateResponse) Send(w http.ResponseWriter) {
 	w.WriteHeader(http.StatusOK)
 	b, err := json.Marshal(s)
 	if err != nil {
-		log.WithError(err).Error("Can't marshal ServerStateResponse to json")
+		log.WithField("caller", "web").WithError(err).Error("Can't marshal ServerStateResponse to json")
 	}
 	w.Write(b)
 	w.Write([]byte("\n"))
@@ -66,7 +66,7 @@ func (s *UDPClientResponse) Send(w http.ResponseWriter) {
 	w.WriteHeader(http.StatusOK)
 	b, err := json.Marshal(s)
 	if err != nil {
-		log.WithError(err).Error("Can't marshal UDPClientResponse to json")
+		log.WithField("caller", "web").WithError(err).Error("Can't marshal UDPClientResponse to json")
 	}
 	w.Write(b)
 	w.Write([]byte("\n"))
@@ -82,7 +82,7 @@ func (s *UDPClientStateResponse) Send(w http.ResponseWriter) {
 	w.WriteHeader(http.StatusOK)
 	b, err := json.Marshal(s)
 	if err != nil {
-		log.WithError(err).Error("Can't marshal UDPClientStateResponse to json")
+		log.WithField("caller", "web").WithError(err).Error("Can't marshal UDPClientStateResponse to json")
 	}
 	w.Write(b)
 	w.Write([]byte("\n"))
@@ -96,7 +96,7 @@ func (a *AllUDPClientResponse) Send(w http.ResponseWriter) {
 	w.WriteHeader(http.StatusOK)
 	b, err := json.Marshal(a)
 	if err != nil {
-		log.WithError(err).Error("Can't marshal AllUDPClientResponse to json")
+		log.WithField("caller", "web").WithError(err).Error("Can't marshal AllUDPClientResponse to json")
 	}
 	w.Write(b)
 	w.Write([]byte("\n"))
@@ -118,7 +118,7 @@ func (p *UDPClientPaginatedRespone) Send(w http.ResponseWriter) {
 	w.WriteHeader(http.StatusOK)
 	b, err := json.Marshal(p)
 	if err != nil {
-		log.WithError(err).Error("Can't marshal PaginatedResponse to json")
+		log.WithField("caller", "web").WithError(err).Error("Can't marshal PaginatedResponse to json")
 	}
 	w.Write(b)
 	w.Write([]byte("\n"))
@@ -138,7 +138,7 @@ func (s *SendDatagramResponse) Send(w http.ResponseWriter) {
 	w.WriteHeader(http.StatusOK)
 	b, err := json.Marshal(s)
 	if err != nil {
-		log.WithError(err).Error("Can't marshal SendDatagramResponse to json")
+		log.WithField("caller", "web").WithError(err).Error("Can't marshal SendDatagramResponse to json")
 	}
 	w.Write(b)
 	w.Write([]byte("\n"))

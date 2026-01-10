@@ -2,7 +2,6 @@ package web
 
 import (
 	"context"
-	"fmt"
 	"io"
 	"net"
 	"sync"
@@ -55,7 +54,7 @@ func (wh *WebSocketHub) readLoop(ws *websocket.Conn) {
 		// Set the ReadDeadline, so we can peridoicly test the context
 		err := ws.SetReadDeadline(time.Now().Add(100 * time.Millisecond))
 		if err != nil {
-			fmt.Println(err)
+			log.WithField("caller", "web").WithError(err).Error("readLoop error")
 		}
 		n, err := ws.Read(buf)
 		if err != nil {
@@ -67,7 +66,7 @@ func (wh *WebSocketHub) readLoop(ws *websocket.Conn) {
 			if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
 				continue
 			}
-			log.WithError(err).Error("readLoop error")
+			log.WithField("caller", "web").WithError(err).Error("readLoop error")
 			break
 		}
 		msg := buf[:n]
@@ -89,7 +88,7 @@ func (wh *WebSocketHub) Broadcast(b []byte) {
 	for _, ws := range conns {
 		go func(ws *websocket.Conn) {
 			if _, err := ws.Write(b); err != nil {
-				fmt.Println("broadcast error:", err)
+				log.WithField("caller", "web").WithError(err).Error("broadcast error")
 			}
 		}(ws)
 	}

@@ -5,12 +5,9 @@ package client
 
 import (
 	"context"
-	"strconv"
 	"sync/atomic"
 
-	"github.com/aura-speak/networking/pkg/protocol"
 	"github.com/aura-speak/networking/pkg/router"
-	log "github.com/sirupsen/logrus"
 )
 
 func NewDebugClient(Host string, Port int, ID int) *Client {
@@ -22,7 +19,7 @@ func NewDebugClient(Host string, Port int, ID int) *Client {
 		recvCh:       make(chan []byte),
 		errCh:        make(chan error),
 		ctx:          ctx,
-		packetRouter: router.NewClientPacketRouter(),
+		packetRouter: router.NewPacketRouter(),
 		ClientState: ClientState{
 			ID: ID,
 		},
@@ -46,18 +43,4 @@ func (c *Client) SetRunningState(running bool) {
 	default:
 		// Channel full, skip notification (non-blocking)
 	}
-}
-
-func (c *Client) debugHello() {
-	log.WithField("caller", "client").Infof("Sending debug hello packet to %s: %d", c.conn.RemoteAddr().String(), c.ClientState.ID)
-	if c.conn == nil {
-		return
-	}
-
-	packet := &protocol.Packet{
-		PacketHeader: protocol.Header{PacketType: protocol.PacketTypeDebugHello},
-		Payload:      []byte(strconv.Itoa(c.ClientState.ID)), // Payload is the ID of the client
-	}
-	c.Send(packet.Encode())
-	log.WithField("caller", "client").Infof("Sent debug hello packet to %s: %d", c.conn.RemoteAddr().String(), c.ClientState.ID)
 }

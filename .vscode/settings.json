@@ -1,4 +1,6 @@
 {
+  "go.buildTags": "",
+  "go.testTags": "",
   "gopls": {
     "buildFlags": ["-tags=debug"]
   }
