@@ -55,4 +55,7 @@ run-server-web-noui:
 	go build -tags=debug -o bin/web ./cmd/web
 	./bin/web
 
+dev-backend:
+	air
+
 .PHONY: build-web build-with-web dev-web run-with-web clean make-server-headless run-server-headless gen-docs run-docs run-client make-client

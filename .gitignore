@@ -33,3 +33,4 @@ go.work.sum
 # .vscode/
 
 count_lines.sh
+zip_code.sh
