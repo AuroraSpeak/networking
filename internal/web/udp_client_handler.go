@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/aura-speak/networking/pkg/client"
+	"github.com/aura-speak/networking/pkg/protocol"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -15,8 +16,8 @@ func (s *Server) startUDPClient(w http.ResponseWriter, r *http.Request) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	name := s.genUDPClient(s.config.UDPPort)
-	s.udpClients[name].client.OnPacket("", func(msg []byte) error {
-		return s.handleAllClient(name, msg)
+	s.udpClients[name].client.OnPacket(protocol.PacketTypeDebugAny, func(packet *protocol.Packet) error {
+		return s.handleAllClient(name, packet.Payload)
 	})
 	s.shutdownWg.Go(func() {
 		s.udpClients[name].client.Run()
@@ -346,6 +347,6 @@ func (s *Server) sendDatagram(w http.ResponseWriter, r *http.Request) {
 	response := SendDatagramResponse{
 		Message: "Datagram sent successfully",
 	}
-	log.Infof("Datagram sent successfully: %s", string(messageBytes))
+	log.WithField("caller", "web").Infof("Datagram sent successfully: %s", string(messageBytes))
 	response.Send(w)
 }
