@@ -50,6 +50,10 @@ const { status, lines, error, send, connect, close } = useStringWs(wsUrl, {
         const clientId = parseInt(parts[1], 10);
         usuEvent.value = { id: clientId, seq: seq++ };
       }
+    } else if (data === "rp") {
+      console.log("rp");
+      send("ack/rp");
+      location.reload();
     }
   },
 });

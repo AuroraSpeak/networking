@@ -58,6 +58,11 @@ export interface SendDatagramRequest {
     format: "hex" | "text";
 }
 
+export interface MermaidTraces {
+    heading: string
+    diagram: string
+}
+
 export interface LogEntry {
     level: string;
     msg: string;

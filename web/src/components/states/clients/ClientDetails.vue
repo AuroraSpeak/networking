@@ -12,6 +12,7 @@
                 @sent="handleDatagramSent"
             />
             <DatagramTable :datagrams="clientState.datagrams" />
+            <ClientMermaid :cname="clientName ?? ''" />
         </div>
         <div v-else class="flex items-center justify-center h-full">
             <div class="text-center">
@@ -28,6 +29,7 @@ import ClientHeader from "./ClientHeader.vue";
 import ClientStats from "./ClientStats.vue";
 import SendDatagramForm from "./SendDatagramForm.vue";
 import DatagramTable from "./DatagramTable.vue";
+import ClientMermaid from "./ClientMermaid.vue";
 
 const props = defineProps<{
     clientState: UDPClientState | undefined;

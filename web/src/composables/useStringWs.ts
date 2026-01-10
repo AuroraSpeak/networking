@@ -107,6 +107,9 @@ export function useStringWs(
     };
 
     ws.onclose = (ev) => {
+      setTimeout(() => {
+        connect();
+      }, 1000);
       status.value = "closed";
       if (storeMessages) {
         lines.value.push("[ws] closed");

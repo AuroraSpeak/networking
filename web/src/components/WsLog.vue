@@ -11,6 +11,39 @@ const props = defineProps<{
 const { parsedLines } = useLogParser(toRef(props, "lines"));
 
 const selectedLog = ref<LogEntry | null>(null);
+const searchQuery = ref("");
+
+const filteredLines = computed(() => {
+  if (!searchQuery.value.trim()) {
+    return parsedLines.value;
+  }
+
+  const query = searchQuery.value.toLowerCase().trim();
+  
+  return parsedLines.value.filter((line) => {
+    if (line.type === "log" && line.log) {
+      // Suche in msg, level, caller und allen anderen Feldern
+      const msg = (line.log.msg || "").toLowerCase();
+      const level = (line.log.level || "").toLowerCase();
+      const caller = (line.log.caller || "").toLowerCase();
+      
+      // Suche auch in allen anderen Feldern des Log-Eintrags
+      const allFields = Object.values(line.log)
+        .map((val) => String(val).toLowerCase())
+        .join(" ");
+      
+      return (
+        msg.includes(query) ||
+        level.includes(query) ||
+        caller.includes(query) ||
+        allFields.includes(query)
+      );
+    } else if (line.type === "text" && line.text) {
+      return line.text.toLowerCase().includes(query);
+    }
+    return false;
+  });
+});
 
 function getLevelBadgeClass(level: string): string {
   const levelLower = level.toLowerCase();
@@ -29,6 +62,29 @@ function getLevelBadgeClass(level: string): string {
   return "badge";
 }
 
+function getCallerBadgeClass(caller: string | undefined): string {
+  if (!caller) return "badge-ghost";
+  const callerLower = caller.toLowerCase();
+  if (callerLower === "web") {
+    return "badge-primary";
+  }
+  if (callerLower === "server") {
+    return "badge-secondary";
+  }
+  if (callerLower === "protocol") {
+    return "badge-accent";
+  }
+  if (callerLower === "client") {
+    return "badge-info";
+  }
+  return "badge-ghost";
+}
+
+function getCallerLabel(caller: string | undefined): string {
+  if (!caller) return "?";
+  return caller.toUpperCase();
+}
+
 function openLogDetail(entry: LogEntry) {
   selectedLog.value = entry;
 }
@@ -39,10 +95,50 @@ function closeLogDetail() {
 </script>
 
 <template>
-  <div class="bg-base-200 rounded-lg h-72 overflow-auto p-3">
-    <div class="space-y-1">
+  <div class="bg-base-200 rounded-lg h-72 flex flex-col p-3">
+    <!-- Suchleiste -->
+    <div class="mb-3">
+      <input
+        v-model="searchQuery"
+        type="text"
+        placeholder="Logs durchsuchen..."
+        class="input input-bordered input-sm w-full"
+      />
+    </div>
+
+    <!-- Legende -->
+    <div class="mb-3 pb-2 border-b border-base-300">
+      <div class="text-xs font-semibold text-base-content/70 mb-1">Caller:</div>
+      <div class="flex flex-wrap gap-2">
+        <div class="flex items-center gap-1">
+          <span class="badge badge-sm badge-primary">WEB</span>
+          <span class="text-xs text-base-content/60">Web Server</span>
+        </div>
+        <div class="flex items-center gap-1">
+          <span class="badge badge-sm badge-secondary">SERVER</span>
+          <span class="text-xs text-base-content/60">UDP Server</span>
+        </div>
+        <div class="flex items-center gap-1">
+          <span class="badge badge-sm badge-accent">PROTOCOL</span>
+          <span class="text-xs text-base-content/60">Protocol</span>
+        </div>
+        <div class="flex items-center gap-1">
+          <span class="badge badge-sm badge-info">CLIENT</span>
+          <span class="text-xs text-base-content/60">UDP Client</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Log-Einträge -->
+    <div class="flex-1 overflow-auto space-y-1">
       <div
-        v-for="line in parsedLines"
+        v-if="filteredLines.length === 0"
+        class="text-center text-sm text-base-content/50 py-4"
+      >
+        Keine Logs gefunden
+      </div>
+      <div
+        v-for="line in filteredLines"
         :key="line.index"
         class="flex items-start gap-2"
       >
@@ -52,6 +148,13 @@ function closeLogDetail() {
           @click="openLogDetail(line.log)"
         >
           <div class="flex items-center gap-2">
+            <span
+              class="badge badge-sm"
+              :class="getCallerBadgeClass(line.log.caller)"
+              :title="`Caller: ${line.log.caller || 'unknown'}`"
+            >
+              {{ getCallerLabel(line.log.caller) }}
+            </span>
             <span
               class="badge badge-sm"
               :class="getLevelBadgeClass(line.log.level)"
