@@ -6,6 +6,8 @@ package server
 import (
 	"net"
 	"time"
+
+	log "github.com/sirupsen/logrus"
 )
 
 type TraceDirection string
@@ -37,8 +39,8 @@ func NewTraceEvent(dir TraceDirection, local string, remote string, len int, pay
 	}
 }
 
-func (s *Server) initTracer() chan TraceEvent {
-	return make(chan TraceEvent, 2000)
+func (s *Server) initTracer() {
+	s.TraceCh = make(chan TraceEvent, 2000)
 }
 
 func (s *Server) emitTrace(dir TraceDirection, local, remote string, payload []byte, clientID int) {
@@ -75,5 +77,6 @@ func (s *Server) trace(dir TraceDirection, remote *net.UDPAddr, payload []byte) 
 	if !ok {
 		clientID = 0
 	}
+	log.WithField("caller", "server").Debugf("Trace registerd for userid: %d", clientID)
 	s.emitTrace(dir, local, remoteAddr, payload, clientID)
 }

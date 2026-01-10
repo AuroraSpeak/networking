@@ -14,6 +14,7 @@ import (
 	"sync"
 	"sync/atomic"
 
+	"github.com/aura-speak/networking/pkg/protocol"
 	"github.com/aura-speak/networking/pkg/router"
 	log "github.com/sirupsen/logrus"
 )
@@ -53,7 +54,8 @@ type Server struct {
 	// send command internal channel
 	OutCommandCh chan InternalCommand
 
-	packetRouter *router.PacketRouter
+	packetRouter *router.ServerPacketRouter
+	TraceCh      chan TraceEvent
 }
 
 // ServerState is the struct for the server state
@@ -71,29 +73,34 @@ type ServerState struct {
 
 // NewServer creates a new UDP Server it takes the port of the Server and the context of the Server
 func NewServer(port int, ctx context.Context) *Server {
-	return &Server{
+	srv := &Server{
 		Port:         port,
 		remoteConns:  new(sync.Map),
 		OutCommandCh: make(chan InternalCommand, 10),
 		ctx:          ctx,
-		packetRouter: router.NewPacketRouter(),
+		packetRouter: router.NewServerPacketRouter(),
 	}
+	srv.initTracer()
+	srv.OnPacket(protocol.PacketTypeDebugHello, srv.handleDebugHello)
+	return srv
 }
 
 // OnPacket registers a new PacketHandler for a specific packet type
 //
 // Example:
 //
-//	server.OnPacket("text", func(packet []byte) error {
+//	server.OnPacket(protocol.PacketTypeDebugHello, func(packet *protocol.Packet, clientAddr string) error {
 //		fmt.Println("Received text packet:", string(packet))
 //		return nil
 //	})
-func (s *Server) OnPacket(packetType string, handler router.PacketHandler) {
+func (s *Server) OnPacket(packetType protocol.PacketType, handler router.ServerPacketHandler) {
+	log.WithField("caller", "server").Infof("Registering packet handler for packet type: %s", protocol.PacketTypeMapType[packetType])
 	s.packetRouter.OnPacket(packetType, handler)
 }
 
 // Run starts the Server and listens for incoming packets
 func (s *Server) Run() error {
+	s.packetRouter.ListRoutes()
 	if atomic.LoadInt32(&s.IsAlive) == 1 {
 		return errors.New("server is already running")
 	}
@@ -108,7 +115,7 @@ func (s *Server) Run() error {
 	}
 	defer s.conn.Close()
 	s.setIsAlive(true)
-	log.Infof("Server started on port %d", s.Port)
+	log.WithField("caller", "server").Infof("Server started on port %d", s.Port)
 
 	// Infinite loop that listens for incoming UDP packets
 	for {
@@ -129,15 +136,19 @@ func (s *Server) Run() error {
 		if err != nil {
 			continue
 		}
-
 		// Check if it is a new remote address
 		// If so, store it in the map
 		if _, ok := s.remoteConns.Load(remoteAddr.String()); !ok {
 			s.remoteConns.Store(remoteAddr.String(), remoteAddr)
 		}
-
-		if err := s.packetRouter.HandlePacket("", buf[:n]); err != nil {
-			log.WithError(err).Error("Error handling packet")
+		packet, err := protocol.Decode(buf[:n])
+		s.trace(TraceIn, remoteAddr, packet.Payload)
+		if err != nil {
+			log.WithField("caller", "server").WithError(err).Error("Error decoding packet")
+			continue
+		}
+		if err := s.packetRouter.HandlePacket(packet, remoteAddr.String()); err != nil {
+			log.WithField("caller", "server").WithError(err).Error("Error handling packet")
 			continue
 		}
 	}
@@ -145,14 +156,15 @@ func (s *Server) Run() error {
 	return nil
 }
 
-func (s *Server) Broadcast(message []byte) {
+func (s *Server) Broadcast(packet *protocol.Packet) {
 	s.wg.Go(func() {
 		s.remoteConns.Range(func(key, value any) bool {
-			if _, err := s.conn.WriteToUDP(message, value.(*net.UDPAddr)); err != nil {
+			if _, err := s.conn.WriteToUDP(packet.Encode(), value.(*net.UDPAddr)); err != nil {
 				// Remove client if needed
 				s.remoteConns.Delete(key)
 				return true
 			}
+			s.trace(TraceOut, value.(*net.UDPAddr), packet.Payload)
 			return true
 		})
 	})

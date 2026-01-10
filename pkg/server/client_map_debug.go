@@ -4,6 +4,7 @@
 package server
 
 import (
+	"strconv"
 	"sync"
 
 	"github.com/aura-speak/networking/pkg/protocol"
@@ -27,7 +28,11 @@ func lookupClientID(remote string) (int, bool) {
 }
 
 func (s *Server) handleDebugHello(packet *protocol.Packet, clientAddr string) error {
-	log.WithField("caller", "server").Infof("Received debug hello packet from %s: %d", clientAddr, packet.Payload[0])
-	tryRegisterClient(clientAddr, int(packet.Payload[0]))
+	id, err := strconv.Atoi(string(packet.Payload))
+	if err != nil {
+		log.WithField("caller", "server").WithError(err).Error("Error converting payload to integer")
+		return nil
+	}
+	tryRegisterClient(clientAddr, id)
 	return nil
 }
