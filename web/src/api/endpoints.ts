@@ -1,5 +1,5 @@
 import type { ApiClient } from "./client";
-import type { ID, Paginated, ServerState, UDPClient, UDPClientState } from "./types";
+import type { ID, Paginated, ServerState, UDPClient, UDPClientState, SendDatagramRequest } from "./types";
 
 export interface ServerApi {
     start: () => Promise<void>;
@@ -14,6 +14,7 @@ export interface UDPClientApi {
     getStateById: (id: ID) => Promise<UDPClientState>;
     getAll: () => Promise<{ udpClients: UDPClient[] }>;
     list: (params: { page?: number, pageSize?: number, q?: string }) => Promise<Paginated<UDPClient>>;
+    sendDatagram: (request: SendDatagramRequest) => Promise<void>;
 }
 
 export function createServerApi(client: ApiClient): ServerApi {
@@ -32,5 +33,6 @@ export function createUDPClientApi(client: ApiClient): UDPClientApi {
         getStateById: (id: ID) => client.get("/api/client/get/id", { query: { id } }),
         getAll: () => client.get("/api/client/get/all"),
         list: (params: { page?: number, pageSize?: number, q?: string }) => client.get("/api/client/get/all/paginated", { query: params }),
+        sendDatagram: (request: SendDatagramRequest) => client.post("/api/client/send", { body: request }),
     };
 }

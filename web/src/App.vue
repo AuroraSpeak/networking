@@ -41,6 +41,7 @@ const { status, lines, error, send, connect, close } = useStringWs(wsUrl, {
       console.log("cnu");
       NewClient.value = true;
     } else if (data.startsWith("usu,")) {
+      console.log("usu", data);
       const parts = data.split(",");
       if (parts.length > 1 && parts[1]) {
         const clientId = parseInt(parts[1], 10);

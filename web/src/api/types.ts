@@ -51,3 +51,9 @@ export interface UDPClientState {
     running: boolean;
     datagrams: Datagram[];
 }
+
+export interface SendDatagramRequest {
+    id: ID;
+    message: string;
+    format: "hex" | "text";
+}
