@@ -3,6 +3,8 @@ package protocol
 import (
 	"bytes"
 	"errors"
+
+	log "github.com/sirupsen/logrus"
 )
 
 // HeaderSize is the size of the header in bytes
@@ -74,6 +76,10 @@ func DecodeHeader(data []byte) (Header, error) {
 		return Header{}, errors.New("data too short")
 	}
 	packetType := PacketType(data[0])
+	if !IsValidPacketType(packetType) {
+		return Header{}, errors.New("invalid packet type")
+	}
+	log.WithField("caller", "protocol").Infof("Decoded header: %s", PacketTypeMapType[packetType])
 	return Header{PacketType: packetType}, nil
 }
 
