@@ -32,11 +32,12 @@
                 </div>
                 <div class="form-control">
                     <label class="label">
-                        <span class="label-text">Nachricht</span>
+                        <span class="label-text">Nachricht:</span>
                     </label>
+                    <br>
                     <textarea
                         v-model="sendMessage"
-                        class="textarea textarea-bordered"
+                        class="textarea textarea-bordered w-full resize-none"
                         :placeholder="sendFormat === 'hex' ? '48 65 6C 6C 6F oder 48656C6C6F' : 'Geben Sie Ihre Nachricht ein...'"
                         rows="3"
                     ></textarea>

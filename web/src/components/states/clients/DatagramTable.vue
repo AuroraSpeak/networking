@@ -12,7 +12,7 @@
                 </thead>
                 <tbody>
                     <tr v-for="(datagram, index) in datagrams" :key="index">
-                        <td>
+                        <td class="w-1/4">
                             <div class="badge"
                                 :class="datagram.direction === 1 ? 'badge-info' : 'badge-warning'">
                                 {{ datagram.direction === 1 ? 'Client → Server' : 'Server → Client' }}
