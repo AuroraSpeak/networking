@@ -2,12 +2,16 @@ package web
 
 import (
 	"encoding/json"
+	"fmt"
 	"math"
 	"net/http"
 	"strconv"
 	"strings"
 
+	"github.com/aura-speak/networking/internal/web/utils"
 	"github.com/aura-speak/networking/pkg/client"
+	"github.com/aura-speak/networking/pkg/protocol"
+	"github.com/aura-speak/networking/pkg/server"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -15,8 +19,8 @@ func (s *Server) startUDPClient(w http.ResponseWriter, r *http.Request) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	name := s.genUDPClient(s.config.UDPPort)
-	s.udpClients[name].client.OnPacket("", func(msg []byte) error {
-		return s.handleAllClient(name, msg)
+	s.udpClients[name].client.OnPacket(protocol.PacketTypeDebugAny, func(packet *protocol.Packet) error {
+		return s.handleAllClient(name, packet.Payload)
 	})
 	s.shutdownWg.Go(func() {
 		s.udpClients[name].client.Run()
@@ -303,8 +307,13 @@ func (s *Server) sendDatagram(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	packet := &protocol.Packet{
+		PacketHeader: protocol.Header{PacketType: protocol.PacketTypeDebugAny},
+		Payload:      messageBytes,
+	}
+
 	// Send message via client (außerhalb des Locks, damit es nicht blockiert)
-	if err := clientToSend.Send(messageBytes); err != nil {
+	if err := clientToSend.Send(packet.Encode()); err != nil {
 		apiError := ApiError{
 			Code:    http.StatusInternalServerError,
 			Message: "Failed to send datagram",
@@ -348,4 +357,27 @@ func (s *Server) sendDatagram(w http.ResponseWriter, r *http.Request) {
 	}
 	log.Infof("Datagram sent successfully: %s", string(messageBytes))
 	response.Send(w)
+}
+
+func (s *Server) getTraces(w http.ResponseWriter, r *http.Request) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	clientName := r.URL.Query().Get("name")
+	clientID := s.udpClients[clientName].id
+	fmt.Println(clientID)
+	traces := s.traces
+	filteredTraces := []server.TraceEvent{}
+	for _, trace := range traces {
+		fmt.Println(trace.ClientID)
+		if trace.ClientID == clientID {
+			filteredTraces = append(filteredTraces, trace)
+		}
+	}
+	md := utils.BuildSequenceDiagramFromTraces(filteredTraces)
+	fmt.Println(md)
+	traceRes := MermaidResponse{
+		Heading: fmt.Sprintf("Diagram for user: %s", clientName),
+		Diagram: md,
+	}
+	traceRes.Send(w)
 }

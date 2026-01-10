@@ -3,24 +3,25 @@ package web
 import (
 	"net/http"
 
+	"github.com/aura-speak/networking/pkg/protocol"
 	"github.com/aura-speak/networking/pkg/server"
 	log "github.com/sirupsen/logrus"
 )
 
 // StartUDPServer starts a UDP server in its own goroutine that listens for incoming messages
 func (s *Server) startUDPServer(w http.ResponseWriter, r *http.Request) {
-	log.Infof("Starting UDP server on port %d", s.config.UDPPort)
 	s.mu.Lock()
 	s.udpServer = server.NewServer(s.config.UDPPort, s.ctx)
 	udpServer := s.udpServer
-	s.udpServer.OnPacket("", s.handleAll)
+	s.udpServer.OnPacket(protocol.PacketTypeDebugAny, func(packet *protocol.Packet, clientAddr string) error {
+		return s.handleAll(clientAddr, packet.Payload)
+	})
 	s.mu.Unlock()
 
 	var err error
 	s.shutdownWg.Go(func() {
-		log.Infof("Starting UDP server on port %d", s.config.UDPPort)
 		if err = udpServer.Run(); err != nil {
-			log.WithError(err).Error("error starting udp server")
+			log.WithField("caller", "web").WithError(err).Error("error starting udp server")
 		}
 	})
 
@@ -37,7 +38,7 @@ func (s *Server) stopUDPServer(w http.ResponseWriter, r *http.Request) {
 	s.mu.Unlock()
 
 	if udpServer == nil {
-		log.Warn("UDP server is not running")
+		log.WithField("caller", "web").Warn("UDP server is not running")
 		apiError := ApiError{
 			Code:    http.StatusBadRequest,
 			Message: "UDP server is not running",
@@ -47,7 +48,7 @@ func (s *Server) stopUDPServer(w http.ResponseWriter, r *http.Request) {
 	}
 
 	udpServer.Stop()
-	log.Info("UDP server stopped")
+	log.WithField("caller", "web").Info("UDP server stopped")
 	apiSuccess := ApiSuccess{
 		Message: "UDP server stopped",
 	}

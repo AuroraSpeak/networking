@@ -22,6 +22,9 @@ func (s *Server) registerRoutes() http.Handler {
 	mux.HandleFunc("GET /api/client/get/name", s.getUDPClientStateByName)
 	mux.HandleFunc("GET /api/client/get/id", s.getUDPClientStateById)
 	mux.HandleFunc("GET /api/client/get/all", s.getAllUDPClients)
+
+	// Trace handlers
+	mux.HandleFunc("GET /api/traces/all", s.getTraces)
 	// Paginated all UDP clients
 	mux.HandleFunc("GET /api/client/get/all/paginated", s.getAllUDPClientPaginated)
 

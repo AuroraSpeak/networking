@@ -10,12 +10,15 @@ import (
 
 	"github.com/aura-speak/networking/pkg/client"
 	"github.com/aura-speak/networking/pkg/server"
+	log "github.com/sirupsen/logrus"
 	"golang.org/x/net/websocket"
 )
 
 type Config struct {
 	UDPPort int
 }
+
+var breakRPLoop = false
 
 type Server struct {
 	Port       int
@@ -39,6 +42,10 @@ type Server struct {
 	messageCh chan []InternalMessage
 	// Client command channels mapped by client ID
 	clientCommandChs map[int]chan client.InternalCommand
+
+	// Traces
+	traces  []server.TraceEvent
+	traceMu sync.Mutex
 }
 
 func NewServer(port int, udpPort int) *Server {
@@ -52,6 +59,7 @@ func NewServer(port int, udpPort int) *Server {
 		config:           Config{UDPPort: udpPort},
 		udpClients:       make(map[string]udpClient),
 		clientCommandChs: make(map[int]chan client.InternalCommand),
+		traceMu:          sync.Mutex{},
 	}
 }
 
@@ -65,7 +73,26 @@ func (s *Server) Run() error {
 		s.handleInternal()
 	})
 
+	s.shutdownWg.Go(func() {
+		s.handleTrace()
+	})
+
 	fmt.Printf("Starting server on http://localhost:%d\n", s.Port)
+	go func() {
+		for !breakRPLoop {
+			select {
+			case <-s.ctx.Done():
+				breakRPLoop = true
+				return
+			default:
+				time.Sleep(1 * time.Second)
+			}
+			if breakRPLoop {
+				return
+			}
+			s.wsHub.Broadcast([]byte("rp"))
+		}
+	}()
 	return s.httpServer.ListenAndServe()
 }
 
@@ -145,6 +172,38 @@ func (s *Server) handleInternal() {
 				}
 			case <-s.ctx.Done():
 				return
+			}
+		}
+	})
+}
+
+func (s *Server) handleTrace() {
+	s.shutdownWg.Go(func() {
+		for {
+			s.mu.Lock()
+			udpServer := s.udpServer
+			s.mu.Unlock()
+
+			if udpServer == nil {
+				select {
+				case <-s.ctx.Done():
+					return
+				case <-time.After(100 * time.Millisecond):
+					continue
+				}
+			}
+
+			select {
+			case <-s.ctx.Done():
+				return
+			case trace := <-s.udpServer.TraceCh:
+				s.traceMu.Lock()
+				s.traces = append(s.traces, trace)
+				log.WithFields(log.Fields{
+					"caller": "web",
+					"cid":    trace.ClientID,
+				}).Debugf("Received trace: %+v", trace)
+				s.traceMu.Unlock()
 			}
 		}
 	})

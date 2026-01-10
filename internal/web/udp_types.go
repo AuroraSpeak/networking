@@ -3,6 +3,7 @@ package web
 import (
 	"encoding/json"
 	"net/http"
+	"time"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -27,4 +28,8 @@ func (d *datagram) Send(w http.ResponseWriter) {
 	}
 	w.Write(b)
 	w.Write([]byte("\n"))
+}
+
+type trace struct {
+	TS time.Time `json:"ts"`
 }

@@ -143,3 +143,18 @@ func (s *SendDatagramResponse) Send(w http.ResponseWriter) {
 	w.Write(b)
 	w.Write([]byte("\n"))
 }
+
+type MermaidResponse struct {
+	Heading string `json:"heading"`
+	Diagram string `json:"diagram"`
+}
+
+func (m *MermaidResponse) Send(w http.ResponseWriter) {
+	w.WriteHeader(http.StatusOK)
+	b, err := json.Marshal(m)
+	if err != nil {
+		log.WithField("caller", "web").WithError(err).Error("Can't marshal MermaidDiagram to json")
+	}
+	w.Write(b)
+	w.Write([]byte("\n"))
+}
