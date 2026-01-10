@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"net"
 	"sync"
+	"time"
 
 	"github.com/aura-speak/networking/pkg/router"
 	log "github.com/sirupsen/logrus"
@@ -109,6 +110,10 @@ func (c *Client) Run() error {
 	c.wg.Go(func() {
 		c.sendLoop()
 	})
+
+	c.wg.Go(func() {
+		c.handleErrors()
+	})
 	defer c.conn.Close()
 	log.Info("Starting client")
 	c.wg.Wait()
@@ -136,9 +141,14 @@ func (c *Client) Stop() {
 //
 // client.Send([]byte("Hello, Server!"))
 func (c *Client) Send(msg []byte) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
 	select {
 	case <-c.ctx.Done():
 		return errors.New("context cancelled")
+	case <-ctx.Done():
+		return errors.New("send timeout: sendLoop may not be running or is blocked")
 	case c.sendCh <- msg:
 		return nil
 	}
@@ -155,6 +165,7 @@ func (c *Client) sendLoop() {
 				c.errCh <- err
 				continue
 			}
+			c.SetRunningState(true)
 		}
 	}
 }
@@ -189,6 +200,18 @@ func (c *Client) recvLoop() {
 
 		if err := c.packetRouter.HandlePacket("", dst); err != nil {
 			log.WithError(err).Error("Error handling packet")
+			continue
+		}
+	}
+}
+
+func (c *Client) handleErrors() {
+	for {
+		select {
+		case <-c.ctx.Done():
+			return
+		case err := <-c.errCh:
+			log.WithError(err).Error("Error in client")
 			continue
 		}
 	}
