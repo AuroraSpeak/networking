@@ -16,7 +16,7 @@
             </button>
         </div>
         <button class="btn btn-primary w-full mt-4" @click="$emit('start-server')">
-            Start Server
+            Start Client
         </button>
     </div>
 </template>
