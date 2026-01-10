@@ -7,4 +7,5 @@ func Setup() {
 		DisableColors: true,
 		FullTimestamp: false,
 	})
+	logrus.SetLevel(logrus.DebugLevel)
 }
