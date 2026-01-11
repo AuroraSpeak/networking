@@ -34,3 +34,5 @@ go.work.sum
 
 count_lines.sh
 zip_code.sh
+
+**/networking_code_*.zip
