@@ -3,5 +3,8 @@
   "go.testTags": "",
   "gopls": {
     "buildFlags": ["-tags=debug"]
-  }
+  },
+  "cSpell.words": [
+    "ciphersuite"
+  ]
 }
