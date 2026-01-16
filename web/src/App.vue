@@ -7,6 +7,7 @@ import ServerState from "./components/states/ServerState.vue";
 import { useServerStore } from "@/stores/UDPServer";
 import { useServerButton } from "./composables/useServerButton";
 import ClientsState from "./components/states/ClientsState.vue";
+import PacketSniffer from "./components/sniffer/PacketSniffer.vue";
 import Overlay from "@/components/Overlay.vue";
 import { useApi } from "@/api/useApi";
 
@@ -65,8 +66,9 @@ function handleSend(text: string) {
   if (!ok) lines.value.push("[ws] not connected");
 }
 
-// clients overlay
+// overlays
 const clientsOverlay = ref(false);
+const snifferOverlay = ref(false);
 </script>
 
 <template>
@@ -109,6 +111,7 @@ const clientsOverlay = ref(false);
       <ul class="menu bg-base-200 min-h-full w-80 p-4">
         <li><button onclick="server_modal.showModal()">Server</button></li>
         <li><button @click="clientsOverlay = true">Clients</button></li>
+        <li><button @click="snifferOverlay = true">Packet Sniffer</button></li>
       </ul>
     </div>
     <!-- Server Modal -->
@@ -129,6 +132,11 @@ const clientsOverlay = ref(false);
     <Overlay v-model="clientsOverlay" title="Clients" widthClass="w-11/12 w-[90vw]" maxWClass="max-w-none"
       heightClass="h-11/12">
       <ClientsState :needs-update="NewClient" :usu-event="usuEvent" @done:clients-update="NewClient = false" />
+    </Overlay>
+    <!-- Packet Sniffer Overlay -->
+    <Overlay v-model="snifferOverlay" title="Packet Sniffer" widthClass="w-11/12 w-[90vw]" maxWClass="max-w-none"
+      heightClass="h-11/12">
+      <PacketSniffer />
     </Overlay>
   </div>
 </template>

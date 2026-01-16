@@ -171,6 +171,9 @@ func (c *Client) sendLoop() {
 		case <-c.ctx.Done():
 			return
 		case msg := <-c.sendCh:
+			// Capture outgoing packet before sending
+			c.capturePacket(ClientSnifferOut, msg, 0, "")
+
 			if _, err := c.conn.Write(msg); err != nil {
 				c.errCh <- err
 				continue
@@ -202,6 +205,10 @@ func (c *Client) recvLoop() {
 		// TODO: same here change later when we exacly know the max msg length of a packet in the Protocol
 		dst := make([]byte, n)
 		copy(dst, buffer[:n])
+
+		// Capture raw packet data before decoding (for DTLS and other protocols)
+		c.capturePacket(ClientSnifferIn, dst, 0, "")
+
 		if string(dst) == "STOP" {
 			log.WithField("caller", "client").Info("Received STOP message from server")
 			if c.cancel != nil {
@@ -213,8 +220,16 @@ func (c *Client) recvLoop() {
 		packet, err := protocol.Decode(dst)
 		if err != nil {
 			log.WithField("caller", "client").WithError(err).Error("Error decoding packet")
+			// Packet already captured above with empty packetType
 			continue
 		}
+
+		// Update captured packet with packet type if decoding succeeded
+		packetTypeStr := protocol.PacketTypeMapType[packet.PacketHeader.PacketType]
+		if packetTypeStr != "" {
+			c.capturePacket(ClientSnifferIn, packet.Payload, 0, packetTypeStr)
+		}
+
 		if err := c.packetRouter.HandlePacket(packet); err != nil {
 			log.WithField("caller", "client").WithError(err).Error("Error handling packet")
 			continue

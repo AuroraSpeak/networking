@@ -1,5 +1,5 @@
 import type { ApiClient } from "./client";
-import type { ID, Paginated, ServerState, UDPClient, UDPClientState, SendDatagramRequest, MermaidTraces } from "./types";
+import type { ID, Paginated, ServerState, UDPClient, UDPClientState, SendDatagramRequest, MermaidTraces, SnifferPacket } from "./types";
 
 export interface ServerApi {
     start: () => Promise<void>;
@@ -19,6 +19,11 @@ export interface UDPClientApi {
 
 export interface TraceApi {
     getAll: (name: string) => Promise<MermaidTraces>;
+}
+
+export interface SnifferApi {
+    getPackets: (name?: string) => Promise<SnifferPacket[]>;
+    clearPackets: () => Promise<void>;
 }
 
 export function createServerApi(client: ApiClient): ServerApi {
@@ -44,5 +49,23 @@ export function createUDPClientApi(client: ApiClient): UDPClientApi {
 export function createTraceApi(client: ApiClient): TraceApi {
     return {
         getAll: (name: string) => client.get("/api/traces/all", { query: {name}}),
+    };
+}
+
+export function createSnifferApi(client: ApiClient): SnifferApi {
+    return {
+        getPackets: (name?: string) => {
+            const query = name ? { name } : undefined;
+            return client.get<{ packets: Array<{ ts: string; dir: string; local: string; remote: string; payload: string; client_id: number; packet_type?: string }> }>("/api/sniffer/packets", { query })
+                .then(res => {
+                    // Decode Base64 payload to Uint8Array
+                    return res.packets.map(p => ({
+                        ...p,
+                        payload: Uint8Array.from(atob(p.payload), c => c.charCodeAt(0)),
+                        dir: p.dir as "in" | "out"
+                    }));
+                });
+        },
+        clearPackets: () => client.post("/api/sniffer/clear"),
     };
 }

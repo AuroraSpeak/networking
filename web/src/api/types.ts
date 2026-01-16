@@ -69,3 +69,13 @@ export interface LogEntry {
     time: string;
     [key: string]: any; // Für zukünftige dynamische Felder
 }
+
+export interface SnifferPacket {
+    ts: string;
+    dir: "in" | "out";
+    local: string;
+    remote: string;
+    payload: Uint8Array; // Will be decoded from Base64
+    client_id: number; // 0 = unbekannt/kein Client zugeordnet
+    packet_type?: string;
+}

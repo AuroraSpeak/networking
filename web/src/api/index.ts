@@ -1,12 +1,13 @@
 import type { App, InjectionKey} from "vue";
 import { createFetchClient, type ApiClient } from "./client";
-import { createServerApi, createTraceApi, createUDPClientApi, type ServerApi, type TraceApi, type UDPClientApi } from "./endpoints";
+import { createServerApi, createSnifferApi, createTraceApi, createUDPClientApi, type ServerApi, type SnifferApi, type TraceApi, type UDPClientApi } from "./endpoints";
 
 export interface Api {
     client: ApiClient;
     server: ServerApi;
     udpClients: UDPClientApi;
     trace: TraceApi;
+    sniffer: SnifferApi;
 }
 
 export const ApiKey: InjectionKey<Api> = Symbol("Api");
@@ -23,6 +24,7 @@ export function createApi(baseUrl: string): Api {
         server: createServerApi(client),
         udpClients: createUDPClientApi(client),
         trace: createTraceApi(client),
+        sniffer: createSnifferApi(client),
     }
 }
 

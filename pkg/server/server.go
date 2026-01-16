@@ -144,12 +144,28 @@ func (s *Server) Run() error {
 		if _, ok := s.remoteConns.Load(remoteAddr.String()); !ok {
 			s.remoteConns.Store(remoteAddr.String(), remoteAddr)
 		}
+
+		// Capture raw packet data before decoding (for DTLS and other protocols)
+		rawPayload := make([]byte, n)
+		copy(rawPayload, buf[:n])
+		clientID, _ := lookupClientID(remoteAddr.String())
+		s.capturePacket(SnifferIn, remoteAddr, rawPayload, clientID, "")
+
 		packet, err := protocol.Decode(buf[:n])
 		s.trace(TraceIn, remoteAddr, packet.Payload)
 		if err != nil {
 			log.WithField("caller", "server").WithError(err).Error("Error decoding packet")
+			// Packet already captured above with empty packetType
 			continue
 		}
+
+		// Update captured packet with packet type if decoding succeeded
+		packetTypeStr := protocol.PacketTypeMapType[packet.PacketHeader.PacketType]
+		if packetTypeStr != "" {
+			// Re-capture with packet type (optional, for better tracking)
+			s.capturePacket(SnifferIn, remoteAddr, packet.Payload, clientID, packetTypeStr)
+		}
+
 		if err := s.packetRouter.HandlePacket(packet, remoteAddr.String()); err != nil {
 			log.WithField("caller", "server").WithError(err).Error("Error handling packet")
 			continue
@@ -162,12 +178,18 @@ func (s *Server) Run() error {
 func (s *Server) Broadcast(packet *protocol.Packet) {
 	s.wg.Go(func() {
 		s.remoteConns.Range(func(key, value any) bool {
-			if _, err := s.conn.WriteToUDP(packet.Encode(), value.(*net.UDPAddr)); err != nil {
+			remoteAddr := value.(*net.UDPAddr)
+			encoded := packet.Encode()
+			if _, err := s.conn.WriteToUDP(encoded, remoteAddr); err != nil {
 				// Remove client if needed
 				s.remoteConns.Delete(key)
 				return true
 			}
-			s.trace(TraceOut, value.(*net.UDPAddr), packet.Payload)
+			s.trace(TraceOut, remoteAddr, packet.Payload)
+			// Capture outgoing packet
+			clientID, _ := lookupClientID(remoteAddr.String())
+			packetTypeStr := protocol.PacketTypeMapType[packet.PacketHeader.PacketType]
+			s.capturePacket(SnifferOut, remoteAddr, packet.Payload, clientID, packetTypeStr)
 			return true
 		})
 	})

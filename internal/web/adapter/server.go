@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/aura-speak/networking/internal/web/orchestrator"
+	"github.com/aura-speak/networking/internal/web/sniffer"
 	"github.com/aura-speak/networking/internal/web/trace"
 	"github.com/aura-speak/networking/pkg/client"
 	"github.com/aura-speak/networking/pkg/protocol"
@@ -34,15 +35,17 @@ type Server struct {
 	shutdownWg sync.WaitGroup
 
 	// Components
-	wsHub         *WebSocketHub
-	serverService *orchestrator.UDPServerService
-	clientService *orchestrator.UDPClientService
-	traceService  *trace.Service
+	wsHub          *WebSocketHub
+	serverService  *orchestrator.UDPServerService
+	clientService  *orchestrator.UDPClientService
+	traceService   *trace.Service
+	snifferService *sniffer.Service
 
 	// Handlers
-	serverHandlers *ServerHandlers
-	clientHandlers *ClientHandlers
-	traceHandlers  *TraceHandlers
+	serverHandlers  *ServerHandlers
+	clientHandlers  *ClientHandlers
+	traceHandlers   *TraceHandlers
+	snifferHandlers *SnifferHandlers
 
 	// Client factory for debug/release builds
 	clientFactory orchestrator.ClientFactory
@@ -56,25 +59,41 @@ func NewServer(port int, udpPort int, clientFactory orchestrator.ClientFactory) 
 	log.AddHook(NewWebSocketHook(wsHub))
 
 	traceService := trace.NewService(ctx)
+	snifferService := sniffer.NewService(ctx)
 	serverService := orchestrator.NewUDPServerService(ctx, udpPort)
 	clientService := orchestrator.NewUDPClientService(ctx, udpPort, clientFactory)
 
 	s := &Server{
-		Port:          port,
-		config:        Config{UDPPort: udpPort},
-		ctx:           ctx,
-		cancel:        cancel,
-		wsHub:         wsHub,
-		serverService: serverService,
-		clientService: clientService,
-		traceService:  traceService,
-		clientFactory: clientFactory,
+		Port:           port,
+		config:         Config{UDPPort: udpPort},
+		ctx:            ctx,
+		cancel:         cancel,
+		wsHub:          wsHub,
+		serverService:  serverService,
+		clientService:  clientService,
+		traceService:   traceService,
+		snifferService: snifferService,
+		clientFactory:  clientFactory,
 	}
+
+	// Set client sniffer callback to capture packets from clients
+	client.SetClientSnifferCallback(func(dir client.ClientSnifferDirection, local, remote string, payload []byte, clientID int, packetType string) {
+		packet := sniffer.NewPacket(
+			sniffer.Direction(dir),
+			local,
+			remote,
+			payload,
+			clientID,
+			packetType,
+		)
+		s.snifferService.Add(packet)
+	})
 
 	// Initialize handlers
 	s.serverHandlers = NewServerHandlers(serverService, wsHub, s.startUDPServerInternal)
 	s.clientHandlers = NewClientHandlers(clientService, wsHub, s.startClientInternal)
 	s.traceHandlers = NewTraceHandlers(traceService, clientService)
+	s.snifferHandlers = NewSnifferHandlers(snifferService, clientService)
 
 	return s
 }
@@ -143,6 +162,10 @@ func (s *Server) registerRoutes() http.Handler {
 	// Trace handlers
 	mux.HandleFunc("GET /api/traces/all", s.traceHandlers.GetTraces)
 
+	// Sniffer handlers
+	mux.HandleFunc("GET /api/sniffer/packets", s.snifferHandlers.GetPackets)
+	mux.HandleFunc("POST /api/sniffer/clear", s.snifferHandlers.ClearPackets)
+
 	// CORS wrapper for API routes
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if len(r.URL.Path) >= 4 && r.URL.Path[:4] == "/api" {
@@ -164,6 +187,19 @@ func (s *Server) startUDPServerInternal() error {
 	if err != nil {
 		return err
 	}
+
+	// Set sniffer callback to capture packets
+	server.SetSnifferCallback(func(dir server.SnifferDirection, local, remote string, payload []byte, clientID int, packetType string) {
+		packet := sniffer.NewPacket(
+			sniffer.Direction(dir),
+			local,
+			remote,
+			payload,
+			clientID,
+			packetType,
+		)
+		s.snifferService.Add(packet)
+	})
 
 	s.shutdownWg.Add(1)
 	go func() {
@@ -263,7 +299,6 @@ func (s *Server) handleServerCommands() {
 		}
 	}
 }
-
 
 // Shutdown gracefully shuts down the server
 func (s *Server) Shutdown(timeout time.Duration) error {
