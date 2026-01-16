@@ -20,6 +20,7 @@ export function useDatagramFormatting() {
 
     /**
      * Formatiert eine Datagramm-Nachricht als Text-String (UTF-8)
+     * Zeigt druckbare ASCII-Zeichen als Text, andere als Hex-Escape-Sequenzen
      */
     function formatDatagramText(message: any): string {
         if (!message) return "";
@@ -42,14 +43,17 @@ export function useDatagramFormatting() {
             return String(message);
         }
 
-        // UTF-8 dekodieren
-        try {
-            const decoder = new TextDecoder('utf-8', { fatal: false });
-            return decoder.decode(bytes);
-        } catch (e) {
-            // Falls UTF-8 Dekodierung fehlschlägt, als Hex anzeigen
-            return Array.from(bytes).map(b => b.toString(16).padStart(2, "0")).join(" ");
-        }
+        // Zeige nur druckbare ASCII-Zeichen, andere als Hex-Escape-Sequenzen
+        return Array.from(bytes)
+            .map(b => {
+                // Druckbare ASCII-Zeichen (32-126) oder Tab, LF, CR
+                if ((b >= 32 && b <= 126) || b === 9 || b === 10 || b === 13) {
+                    return String.fromCharCode(b);
+                } else {
+                    return `\\x${b.toString(16).padStart(2, '0')}`;
+                }
+            })
+            .join('');
     }
 
     return {
