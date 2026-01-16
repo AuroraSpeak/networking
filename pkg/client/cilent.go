@@ -42,8 +42,9 @@ type Client struct {
 
 	conn *net.UDPConn
 
-	ctx context.Context
-	wg  sync.WaitGroup
+	ctx    context.Context
+	cancel context.CancelFunc
+	wg     sync.WaitGroup
 
 	ClientState
 
@@ -65,7 +66,7 @@ type Client struct {
 
 // NewClient creates a new UDP Client it takes the Host, Port and timeout of the Client
 func NewClient(Host string, Port int) *Client {
-	ctx := context.Background()
+	ctx, cancel := context.WithCancel(context.Background())
 	c := &Client{
 		Host:         Host,
 		Port:         Port,
@@ -73,6 +74,7 @@ func NewClient(Host string, Port int) *Client {
 		recvCh:       make(chan []byte),
 		errCh:        make(chan error),
 		ctx:          ctx,
+		cancel:       cancel,
 		packetRouter: router.NewClientPacketRouter(),
 	}
 	return c
@@ -132,6 +134,10 @@ func (c *Client) Run() error {
 func (c *Client) Stop() {
 	c.running = false
 	c.SetRunningState(false)
+	// Cancel context to signal all goroutines to stop
+	if c.cancel != nil {
+		c.cancel()
+	}
 	if c.conn != nil {
 		c.conn.Close()
 	}
@@ -197,8 +203,10 @@ func (c *Client) recvLoop() {
 		dst := make([]byte, n)
 		copy(dst, buffer[:n])
 		if string(dst) == "STOP" {
-			c.ctx.Done()
 			log.WithField("caller", "client").Info("Received STOP message from server")
+			if c.cancel != nil {
+				c.cancel()
+			}
 			return
 		}
 

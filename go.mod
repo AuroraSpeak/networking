@@ -4,6 +4,8 @@ go 1.25.4
 
 require golang.org/x/net v0.48.0
 
+require github.com/google/gopacket v1.1.19 // indirect
+
 require (
 	github.com/sirupsen/logrus v1.9.3
 	golang.org/x/crypto v0.46.0

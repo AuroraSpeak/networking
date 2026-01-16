@@ -40,7 +40,8 @@ type Server struct {
 	conn        *net.UDPConn
 	remoteConns *sync.Map
 
-	ctx context.Context
+	ctx    context.Context
+	cancel context.CancelFunc
 
 	// ServerState: tells the state of the networking parts of the server
 	ServerState
@@ -73,11 +74,13 @@ type ServerState struct {
 
 // NewServer creates a new UDP Server it takes the port of the Server and the context of the Server
 func NewServer(port int, ctx context.Context) *Server {
+	childCtx, cancel := context.WithCancel(ctx)
 	srv := &Server{
 		Port:         port,
 		remoteConns:  new(sync.Map),
 		OutCommandCh: make(chan InternalCommand, 10),
-		ctx:          ctx,
+		ctx:          childCtx,
+		cancel:       cancel,
 		packetRouter: router.NewServerPacketRouter(),
 	}
 	srv.initTracer()
@@ -173,6 +176,11 @@ func (s *Server) Broadcast(packet *protocol.Packet) {
 // Stop stops the Server and closes all connections
 func (s *Server) Stop() {
 	s.setShouldStop()
+
+	// Cancel context to signal all goroutines to stop
+	if s.cancel != nil {
+		s.cancel()
+	}
 
 	// Send stop message to all connected clients
 	if s.conn != nil {

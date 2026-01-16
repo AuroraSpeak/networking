@@ -53,13 +53,16 @@ func main() {
 		select {
 		case <-sigCh:
 			fmt.Println("\nBeende Client...")
+			c.Stop()
 			return
 		case err := <-errCh:
 			log.WithError(err).Error("Client Fehler")
+			c.Stop()
 			return
 		case text := <-inputCh:
 			if text == "quit" {
 				fmt.Println("Beende Client...")
+				c.Stop()
 				return
 			}
 			if err := c.Send([]byte(text)); err != nil {

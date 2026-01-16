@@ -25,6 +25,7 @@ run-with-web: build-with-web
 
 clean:
 	rm -rf ./bin
+	rm networking_code_*.zip
 
 make-server-headless:
 	@echo "Building server headless..."

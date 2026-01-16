@@ -7,13 +7,13 @@ import (
 	"time"
 
 	"github.com/aura-speak/networking/internal/logger"
-	"github.com/aura-speak/networking/internal/web"
+	"github.com/aura-speak/networking/internal/web/adapter"
 	log "github.com/sirupsen/logrus"
 )
 
 func main() {
 	logger.Setup()
-	server := web.NewServer(8080, 9090)
+	server := adapter.NewServer(8080, 9090, adapter.DefaultClientFactory())
 
 	// Starte Server in Goroutine
 	go func() {
