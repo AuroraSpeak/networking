@@ -70,9 +70,6 @@ func (wh *WebSocketHub) readLoop(ws *websocket.Conn) {
 			break
 		}
 		msg := buf[:n]
-		if string(msg) == "ack/rp" {
-			breakRPLoop = true
-		}
 		wh.Broadcast(msg)
 
 	}

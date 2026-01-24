@@ -18,7 +18,7 @@ import (
 	"github.com/aura-speak/networking/internal/config"
 )
 
-func generateSelfSigned(config *config.ServerConfig) (tls.Certificate, *x509.Certificate, []byte, []byte, error) {
+func generateSelfSigned() (tls.Certificate, *x509.Certificate, []byte, []byte, error) {
 	priv, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
 		return tls.Certificate{}, nil, nil, nil, fmt.Errorf("generate key: %w", err)
@@ -104,26 +104,38 @@ func writePEMFiles(certPath, keyPath string, certPEM, keyPEM []byte) error {
 
 // GenerateCertificates generates self-signed certificates based on config and writes them to file
 func GenerateCertificates(cfg *config.ServerConfig) error {
-	certPath := cfg.Server.DTLS.Cert
-	keyPath := cfg.Server.DTLS.Key
+	certPath := filepath.Join(cfg.Server.DTLS.Path, cfg.Server.DTLS.Cert)
+	keyPath := filepath.Join(cfg.Server.DTLS.Path, cfg.Server.DTLS.Key)
+	caPath := filepath.Join(cfg.Server.DTLS.Path, cfg.Server.DTLS.CA)
 
 	// Check if certs already exist
 	if _, errCert := os.Stat(certPath); errCert == nil {
 		if _, errKey := os.Stat(keyPath); errKey == nil {
-			// Both files exist, skip generation
-			return nil
+			if _, errCA := os.Stat(caPath); errCA == nil {
+				// All files exist, skip generation
+				return nil
+			}
 		}
 	}
 
 	// Generate self-signed certificate
-	_, _, certPEM, keyPEM, err := generateSelfSigned(cfg)
+	_, _, certPEM, keyPEM, err := generateSelfSigned()
 	if err != nil {
 		return fmt.Errorf("generate self-signed cert: %w", err)
 	}
 
 	// Write PEM files to the configured paths
+	// For self-signed, the CA certificate is the same as the server certificate
 	if err := writePEMFiles(certPath, keyPath, certPEM, keyPEM); err != nil {
 		return fmt.Errorf("write pem files: %w", err)
+	}
+
+	// Write CA certificate (same as cert for self-signed)
+	if err := os.MkdirAll(filepath.Dir(caPath), 0o755); err != nil {
+		return fmt.Errorf("mkdir ca dir: %w", err)
+	}
+	if err := os.WriteFile(caPath, certPEM, 0o644); err != nil {
+		return fmt.Errorf("write ca: %w", err)
 	}
 
 	return nil

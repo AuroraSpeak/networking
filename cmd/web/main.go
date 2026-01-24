@@ -6,6 +6,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/aura-speak/networking/internal/config"
 	"github.com/aura-speak/networking/internal/logger"
 	"github.com/aura-speak/networking/internal/web"
 	log "github.com/sirupsen/logrus"
@@ -13,7 +14,8 @@ import (
 
 func main() {
 	logger.Setup()
-	server := web.NewServer(8080, 9090)
+	cfg := config.ServerConfigLoader()
+	server := web.NewServer(8080, 9090, *cfg)
 
 	// Starte Server in Goroutine
 	go func() {

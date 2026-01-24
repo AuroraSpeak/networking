@@ -58,15 +58,16 @@ const sortedFields = computed(() => {
   // Standardfelder zuerst
   const standardFields = ["level", "msg", "time"];
   const otherFields: string[] = [];
+  const entry = props.entry;
   
-  for (const key in props.entry) {
+  for (const key in entry) {
     if (!standardFields.includes(key)) {
       otherFields.push(key);
     }
   }
   
   return [
-    ...standardFields.filter((key) => key in props.entry),
+    ...standardFields.filter((key) => key in entry),
     ...otherFields.sort(),
   ];
 });

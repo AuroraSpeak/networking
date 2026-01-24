@@ -10,8 +10,8 @@ package server
 import (
 	"context"
 	"errors"
-	"fmt"
 	"net"
+	"path/filepath"
 	"sync"
 	"sync/atomic"
 
@@ -86,9 +86,9 @@ func NewServer(port int, ctx context.Context, cfg *config.ServerConfig) *Server 
 		packetRouter: router.NewServerPacketRouter(),
 	}
 
-	if !util.FileExists(fmt.Sprintf("%s:%s", cfg.Server.DTLS.Path, cfg.Server.DTLS.Key)) ||
-		!util.FileExists(fmt.Sprintf("%s:%s", cfg.Server.DTLS.Path, cfg.Server.DTLS.Cert)) ||
-		!util.FileExists(fmt.Sprintf("%s:%s", cfg.Server.DTLS.Path, cfg.Server.DTLS.CA)) {
+	if !util.FileExists(filepath.Join(cfg.Server.DTLS.Path, cfg.Server.DTLS.Key)) ||
+		!util.FileExists(filepath.Join(cfg.Server.DTLS.Path, cfg.Server.DTLS.Cert)) ||
+		!util.FileExists(filepath.Join(cfg.Server.DTLS.Path, cfg.Server.DTLS.CA)) {
 		if err := util.GenerateCertificates(cfg); err != nil {
 			log.WithError(err).WithField("caller", "server").Error("Failed to generate certificates")
 		}

@@ -19,8 +19,6 @@ type Config struct {
 	UDPPort int
 }
 
-var breakRPLoop = false
-
 type Server struct {
 	Port       int
 	mu         sync.Mutex
@@ -51,7 +49,7 @@ type Server struct {
 	traceMu sync.Mutex
 }
 
-func NewServer(port int, udpPort int) *Server {
+func NewServer(port int, udpPort int, cfg config.ServerConfig) *Server {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &Server{
 		Port:             port,
@@ -63,6 +61,7 @@ func NewServer(port int, udpPort int) *Server {
 		udpClients:       make(map[string]udpClient),
 		clientCommandChs: make(map[int]chan client.InternalCommand),
 		traceMu:          sync.Mutex{},
+		cfg:              &cfg,
 	}
 }
 
@@ -81,21 +80,8 @@ func (s *Server) Run() error {
 	})
 
 	fmt.Printf("Starting server on http://localhost:%d\n", s.Port)
-	go func() {
-		for !breakRPLoop {
-			select {
-			case <-s.ctx.Done():
-				breakRPLoop = true
-				return
-			default:
-				time.Sleep(1 * time.Second)
-			}
-			if breakRPLoop {
-				return
-			}
-			s.wsHub.Broadcast([]byte("rp"))
-		}
-	}()
+	// Broadcast restart signal once to all clients
+	s.wsHub.Broadcast([]byte("rp"))
 	return s.httpServer.ListenAndServe()
 }
 
@@ -223,42 +209,43 @@ func (s *Server) Shutdown(timeout time.Duration) error {
 		s.wsHub.Cancel()
 	}
 
-	// Wait for WebSocketHub goroutines to finish
-	if s.wsHub != nil {
-		done := make(chan struct{})
-		go func() {
-			s.wsHub.Wait()
-			close(done)
-		}()
+	// Create a context with the given timeout for all shutdown operations
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
 
-		select {
-		case <-done:
-			fmt.Println("WebSocketHub goroutines finished")
-		case <-time.After(timeout):
-			fmt.Println("Warning: WebSocketHub wait timeout reached")
-		}
-	}
-
-	// Waits for all Goroutines with Timeout
-	done := make(chan struct{})
+	// Shutdown HTTP server
+	httpDone := make(chan error, 1)
 	go func() {
-		s.shutdownWg.Wait()
-		close(done)
+		if err := s.httpServer.Shutdown(shutdownCtx); err != nil {
+			httpDone <- fmt.Errorf("error shutting down HTTP server: %w", err)
+		} else {
+			httpDone <- nil
+		}
 	}()
 
+	// Wait for all goroutines to finish or timeout
+	wgDone := make(chan struct{})
+	go func() {
+		s.shutdownWg.Wait()
+		close(wgDone)
+	}()
+
+	// Wait for either all goroutines or context timeout
 	select {
-	case <-done:
+	case <-wgDone:
 		fmt.Println("All connections closed")
-	case <-time.After(timeout):
+	case <-shutdownCtx.Done():
 		fmt.Println("Warning: Shutdown timeout reached, some connections may not have closed gracefully")
 	}
 
-	// Stoppe den HTTP-Server
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
-	defer cancel()
-
-	if err := s.httpServer.Shutdown(ctx); err != nil {
-		return fmt.Errorf("error shutting down HTTP server: %w", err)
+	// Wait for HTTP server shutdown result with timeout
+	select {
+	case err := <-httpDone:
+		if err != nil {
+			return err
+		}
+	case <-shutdownCtx.Done():
+		fmt.Println("HTTP server shutdown timeout")
 	}
 
 	fmt.Println("Server shutdown complete")
