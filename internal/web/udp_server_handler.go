@@ -11,7 +11,7 @@ import (
 // StartUDPServer starts a UDP server in its own goroutine that listens for incoming messages
 func (s *Server) startUDPServer(w http.ResponseWriter, r *http.Request) {
 	s.mu.Lock()
-	s.udpServer = server.NewServer(s.config.UDPPort, s.ctx)
+	s.udpServer = server.NewServer(s.config.UDPPort, s.ctx, s.cfg)
 	udpServer := s.udpServer
 	s.udpServer.OnPacket(protocol.PacketTypeDebugAny, func(packet *protocol.Packet, clientAddr string) error {
 		return s.handleAll(clientAddr, packet.Payload)

@@ -10,10 +10,13 @@ package server
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net"
 	"sync"
 	"sync/atomic"
 
+	"github.com/aura-speak/networking/internal/config"
+	"github.com/aura-speak/networking/internal/util"
 	"github.com/aura-speak/networking/pkg/protocol"
 	"github.com/aura-speak/networking/pkg/router"
 	log "github.com/sirupsen/logrus"
@@ -56,6 +59,8 @@ type Server struct {
 
 	packetRouter *router.ServerPacketRouter
 	TraceCh      chan TraceEvent
+
+	srvConfig *config.ServerConfig
 }
 
 // ServerState is the struct for the server state
@@ -72,13 +77,21 @@ type ServerState struct {
 // NOTE: Server functions
 
 // NewServer creates a new UDP Server it takes the port of the Server and the context of the Server
-func NewServer(port int, ctx context.Context) *Server {
+func NewServer(port int, ctx context.Context, cfg *config.ServerConfig) *Server {
 	srv := &Server{
 		Port:         port,
 		remoteConns:  new(sync.Map),
 		OutCommandCh: make(chan InternalCommand, 10),
 		ctx:          ctx,
 		packetRouter: router.NewServerPacketRouter(),
+	}
+
+	if !util.FileExists(fmt.Sprintf("%s:%s", cfg.Server.DTLS.Path, cfg.Server.DTLS.Key)) ||
+		!util.FileExists(fmt.Sprintf("%s:%s", cfg.Server.DTLS.Path, cfg.Server.DTLS.Cert)) ||
+		!util.FileExists(fmt.Sprintf("%s:%s", cfg.Server.DTLS.Path, cfg.Server.DTLS.CA)) {
+		if err := util.GenerateCertificates(cfg); err != nil {
+			log.WithError(err).WithField("caller", "server").Error("Failed to generate certificates")
+		}
 	}
 	srv.initTracer()
 	srv.OnPacket(protocol.PacketTypeDebugHello, srv.handleDebugHello)

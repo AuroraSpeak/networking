@@ -49,7 +49,7 @@ func WriteDefaultServerConfig(path string) error {
 	cfg := ServerConfig{}
 	cfg.Server.Port = "8080"
 	cfg.Server.Host = "0.0.0.0"
-	cfg.Server.DTLS.Path = ""
+	cfg.Server.DTLS.Path = "certs/"
 	cfg.Server.DTLS.Cert = ""
 	cfg.Server.DTLS.Key = ""
 	cfg.Server.DTLS.CA = ""

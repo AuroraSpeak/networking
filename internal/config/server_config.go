@@ -11,5 +11,6 @@ type ServerConfig struct {
 			Key  string `yaml:"key"`
 			CA   string `yaml:"ca"`
 		} `yaml:"dtls"`
+		Env string `yaml:"env"` // prod or env if nothing is set then prod
 	} `yaml:"server"`
 }

@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/aura-speak/networking/internal/config"
 	"github.com/aura-speak/networking/pkg/client"
 	"github.com/aura-speak/networking/pkg/server"
 	log "github.com/sirupsen/logrus"
@@ -28,6 +29,8 @@ type Server struct {
 	ctx        context.Context
 	cancel     context.CancelFunc
 	shutdownWg sync.WaitGroup
+
+	cfg *config.ServerConfig
 
 	// WebSocket Hub
 	wsHub *WebSocketHub
