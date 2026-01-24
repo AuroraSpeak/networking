@@ -58,4 +58,26 @@ run-server-web-noui:
 dev-backend:
 	air
 
-.PHONY: build-web build-with-web dev-web run-with-web clean make-server-headless run-server-headless gen-docs run-docs run-client make-client
+.PHONY: help
+help:
+	@echo "Usage: make [target]"
+	@echo ""
+	@echo "Common targets:"
+	@echo "  build-web              Build web assets (cd web && npm run build)"
+	@echo "  build-with-web         Build Go binary including web"
+	@echo "  build-server-headless  Build web binary (headless)"
+	@echo "  run                    Build and run headless web binary"
+	@echo "  dev-web                Run web dev server (npm run dev)"
+	@echo "  dev-backend            Run backend with air"
+	@echo "  make-server-headless   Build server binary"
+	@echo "  run-server-headless    Build and run server headless"
+	@echo "  make-client            Build client binary"
+	@echo "  run-client             Build and run client"
+	@echo "  gen-docs               Install godoc"
+	@echo "  run-docs               Run godoc server on :6060"
+	@echo "  run-server-web-noui    Run server web without UI"
+	@echo "  clean                  Remove ./bin"
+	@echo ""
+	@echo "Example: make run-with-web"
+
+.PHONY: build-web build-with-web dev-web run-with-web clean make-server-headless run-server-headless gen-docs run-docs run-client make-client help
